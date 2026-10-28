@@ -1,73 +1,73 @@
-dataset_name,condition,target_novelty,role,confidence,notes
-adams_marchman_2018,medial,familiar,familiar,low,"Familiar object on a novel object, but recorded phrases never name it; how the novel word in 'noveltest' was introduced is unknown"
-adams_marchman_2018,modiExp1,novel,teaching,medium,"Exposure trial; two novel objects, novel word disambiguated by verb (eat). No phrases in data. Verify protocol with lab."
-adams_marchman_2018,modiExp2,novel,teaching,medium,As modiExp1
-adams_marchman_2018,modiExp3,novel,teaching,medium,As modiExp1
-adams_marchman_2018,modiExp4,novel,teaching,medium,As modiExp1
-adams_marchman_2018,modiImTest1,novel,test_nn,medium,Immediate test after first exposure
-adams_marchman_2018,modiTest2,novel,test_nn,medium,
-adams_marchman_2018,modiTest3,novel,test_nn,medium,
-adams_marchman_2018,modiTest4,novel,test_nn,medium,
-adams_marchman_2018,modiTest5,novel,test_nn,medium,
-adams_marchman_2018,noveltest,novel,test_nn_incidental,low,"Novel label only coded as 'novel'; exposures presumably in 'medial' trials (familiar object on top of novel object), but phrases are missing so exposures cannot be counted. Excluded from main analysis pending lab info."
-adams_marchman_2018,panjuExp1,novel,teaching,medium,Exposure trial; novel word disambiguated by verb (drive). No phrases in data.
-adams_marchman_2018,panjuExp2,novel,teaching,medium,As panjuExp1
-adams_marchman_2018,panjuExp3,novel,teaching,medium,As panjuExp1
-adams_marchman_2018,panjuExp4,novel,teaching,medium,As panjuExp1
-adams_marchman_2018,panjuImTest1,novel,test_nn,medium,Immediate test after first exposure
-adams_marchman_2018,panjuTest2,novel,test_nn,medium,
-adams_marchman_2018,panjuTest3,novel,test_nn,medium,
-adams_marchman_2018,panjuTest4,novel,test_nn,medium,
-adams_marchman_2018,panjuTest5,novel,test_nn,medium,
-baumgartner_2014,Colors_novel,novel,test_nn,high,"lif vs neem after habituation (7 color exemplars); teaching is external (habituation), see external_teaching.csv"
-baumgartner_2014,Labels_novel,novel,test_nn,high,lif vs neem after habituation (single exemplar/token)
-baumgartner_2014,Speakers_novel,novel,test_nn,high,lif vs neem after habituation (7 speakers)
-byers-heinlein_2022,Mixed,familiar,teaching,high,"Training trial: familiar object on a novel object, phrase names both ('the dog on the walem'); the novel word named in full_phrase gets +1 teaching. Familiar word is in the other language."
-byers-heinlein_2022,Mixed,novel,test_nn,high,Test: teelo vs walem
-byers-heinlein_2022,Single,familiar,teaching,high,"Training trial, single-language phrase; novel word parsed from full_phrase gets +1 teaching"
-byers-heinlein_2022,Single,novel,test_nn,high,Test: teelo vs walem
-fernald_marchman_2012,Familiar-Medial,familiar,teaching_incidental,medium,Familiar object on a novel object; phrase either names the novel object ('on the deebo': +1 teaching for deebo) or not ('over there': no labeling)
-fernald_marchman_2012,FerretExposure,novel,teaching,medium,"Exposure with informative verb ('You can drive the tempo'); 24/30 mo sessions, not reported in the 2012 paper"
-fernald_marchman_2012,FerretImmTest,novel,test_nn,medium,Immediate test
-fernald_marchman_2012,FerretRetention,novel,test_nn,medium,Retention test (target vs other taught novel word)
-fernald_marchman_2012,FerretTest,novel,test_nn,medium,
-fernald_marchman_2012,Novel-Test,novel,test_nn,medium,"'Where's the deebo?' (target label recoded novel -> deebo). Exposures are incidental labelings in Familiar-Medial trials ('There's a baby on the deebo'), counted from full_phrase"
-fernald_marchman_2012,medial,familiar,teaching_incidental,medium,As Familiar-Medial
-fernald_totlot,alearn,novel,test_nn,medium,Test kreeb vs nonce
-fernald_totlot,learn,novel,test_nn,medium,Test kreeb vs nonce
-fernald_totlot,new,novel,test_me,medium,ME trial: toma vs familiar object (banana). Distractor novelty is mis-coded as novel in Peekbank (import script uses the target label)
-fernald_totlot,ylearn,novel,test_nn,medium,Test kreeb vs nonce (21 mo)
-fernald_totlot,zteach,novel,teaching,medium,Teaching trial: novel object mapped to novel label (kreeb or nonce)
-frank_tablet_2016,FAMILIAR-novel,familiar,familiar_me_control,high,"ME control: familiar word, familiar target vs novel distractor"
-frank_tablet_2016,familiar-NOVEL,novel,test_me,high,"ME inference: novel word, novel target vs familiar distractor"
-moore_bergelson_2022_verb,*,novel,exclude,high,"Mispronunciations, not novel words"
-pomper_dimy,animal,novel,test_untaught,high,"Novel word (-y ending) with two unfamiliar objects, no teaching: tests a morphological cue, not learning. Not in main analysis."
-pomper_dimy,vehicle,novel,test_untaught,high,As animal
-pomper_salientme,high_salience_selection,familiar,familiar_me_control,high,"Familiar word, familiar target vs novel distractor"
-pomper_salientme,high_salience_selection,novel,test_me,high,"Referent-selection (ME) trial in the learning phase: novel word, novel target vs familiar distractor; 3 per novel word"
-pomper_salientme,high_salience_test,familiar,familiar,high,Familiar filler
-pomper_salientme,high_salience_test,novel,test_nn,high,Test: two novel objects from the same salience condition
-pomper_salientme,low_salience_selection,familiar,familiar_me_control,high,
-pomper_salientme,low_salience_selection,novel,test_me,high,As high_salience_selection
-pomper_salientme,low_salience_test,familiar,familiar,high,
-pomper_salientme,low_salience_test,novel,test_nn,high,
-pomper_yumme,Fam-ME-Food,familiar,familiar_me_control,medium,
-pomper_yumme,Fam-ME-Non,familiar,familiar_me_control,medium,
-pomper_yumme,Food-Fam,familiar,familiar_me_control,medium,
-pomper_yumme,Food-Nov,novel,test_nf,medium,v5: taught novel word vs familiar distractor (after 4 isolated teaching trials not in Peekbank)
-pomper_yumme,Nov-Eat,novel,exclude,high,"Verb-only prompt ('which one can you eat?'), no novel label"
-pomper_yumme,Nov-ME-Food,novel,test_me,medium,"v4 ME trial (novel word, novel target vs familiar food); also the v4 'teaching' of the novel labels"
-pomper_yumme,Nov-ME-Non,novel,test_me,medium,v4 ME trial vs familiar non-food
-pomper_yumme,Nov-Name,novel,test_nn,medium,"v4: two novel objects, neutral carrier"
-pomper_yumme,Toy-Fam,familiar,familiar_me_control,medium,
-pomper_yumme,Toy-Nov,novel,test_nf,medium,v5: as Food-Nov
-reflook_socword,brief,novel,test_nn,medium,bosa vs novel distractor; taught in learning videos not in Peekbank (brief social cue)
-reflook_socword,extended,novel,test_nn,medium,manu vs novel distractor; taught in learning videos (extended social cue)
-reflook_v4,novel,novel,test_nn,medium,toma vs fep; taught in learning videos not in Peekbank
-swingley_aslin_2002,*,novel,exclude,high,"Mispronunciations, not novel words"
-yurovsky_2017,ME_Balanced,novel,test_me,medium,"ME: new word dax, distractor is the taught object (both objects novel)"
-yurovsky_2017,ME_NonSalient,novel,test_me,medium,
-yurovsky_2017,ME_Salient,novel,test_me,medium,
-yurovsky_2017,Novel_Balanced,novel,test_nn,medium,modi vs the other toy; modi taught in 4 learning trials not in Peekbank
-yurovsky_2017,Novel_NonSalient,novel,test_nn,medium,
-yurovsky_2017,Novel_Salient,novel,test_nn,medium,
+dataset_name,condition,target_novelty,role,confidence,needs_prior_session,notes
+adams_marchman_2018,medial,familiar,familiar,low,,"Familiar object on a novel object, but recorded phrases never name it; how the novel word in 'noveltest' was introduced is unknown"
+adams_marchman_2018,modiExp1,novel,teaching,medium,,"Exposure trial; two novel objects, novel word disambiguated by verb (eat). No phrases in data. Verify protocol with lab."
+adams_marchman_2018,modiExp2,novel,teaching,medium,,As modiExp1
+adams_marchman_2018,modiExp3,novel,teaching,medium,,As modiExp1
+adams_marchman_2018,modiExp4,novel,teaching,medium,,As modiExp1
+adams_marchman_2018,modiImTest1,novel,test_nn,medium,,Immediate test after first exposure
+adams_marchman_2018,modiTest2,novel,test_nn,medium,,
+adams_marchman_2018,modiTest3,novel,test_nn,medium,,
+adams_marchman_2018,modiTest4,novel,test_nn,medium,,
+adams_marchman_2018,modiTest5,novel,test_nn,medium,,
+adams_marchman_2018,noveltest,novel,test_nn_incidental,low,,"Novel label only coded as 'novel'; exposures presumably in 'medial' trials (familiar object on top of novel object), but phrases are missing so exposures cannot be counted. Excluded from main analysis pending lab info."
+adams_marchman_2018,panjuExp1,novel,teaching,medium,,Exposure trial; novel word disambiguated by verb (drive). No phrases in data.
+adams_marchman_2018,panjuExp2,novel,teaching,medium,,As panjuExp1
+adams_marchman_2018,panjuExp3,novel,teaching,medium,,As panjuExp1
+adams_marchman_2018,panjuExp4,novel,teaching,medium,,As panjuExp1
+adams_marchman_2018,panjuImTest1,novel,test_nn,medium,,Immediate test after first exposure
+adams_marchman_2018,panjuTest2,novel,test_nn,medium,,
+adams_marchman_2018,panjuTest3,novel,test_nn,medium,,
+adams_marchman_2018,panjuTest4,novel,test_nn,medium,,
+adams_marchman_2018,panjuTest5,novel,test_nn,medium,,
+baumgartner_2014,Colors_novel,novel,test_nn,high,,"lif vs neem after habituation (7 color exemplars); teaching is external (habituation), see external_teaching.csv"
+baumgartner_2014,Labels_novel,novel,test_nn,high,,lif vs neem after habituation (single exemplar/token)
+baumgartner_2014,Speakers_novel,novel,test_nn,high,,lif vs neem after habituation (7 speakers)
+byers-heinlein_2022,Mixed,familiar,teaching,high,,"Training trial: familiar object on a novel object, phrase names both ('the dog on the walem'); the novel word named in full_phrase gets +1 teaching. Familiar word is in the other language."
+byers-heinlein_2022,Mixed,novel,test_nn,high,,Test: teelo vs walem
+byers-heinlein_2022,Single,familiar,teaching,high,,"Training trial, single-language phrase; novel word parsed from full_phrase gets +1 teaching"
+byers-heinlein_2022,Single,novel,test_nn,high,,Test: teelo vs walem
+fernald_marchman_2012,Familiar-Medial,familiar,teaching_incidental,medium,,Familiar object on a novel object; phrase either names the novel object ('on the deebo': +1 teaching for deebo) or not ('over there': no labeling)
+fernald_marchman_2012,FerretExposure,novel,teaching,medium,,"Exposure with informative verb ('You can drive the tempo'); 24/30 mo sessions, not reported in the 2012 paper"
+fernald_marchman_2012,FerretImmTest,novel,test_nn,medium,,Immediate test
+fernald_marchman_2012,FerretRetention,novel,test_nn,medium,TRUE,Retention test (target vs other taught novel word)
+fernald_marchman_2012,FerretTest,novel,test_nn,medium,,
+fernald_marchman_2012,Novel-Test,novel,test_nn,medium,,"'Where's the deebo?' (target label recoded novel -> deebo). Exposures are incidental labelings in Familiar-Medial trials ('There's a baby on the deebo'), counted from full_phrase"
+fernald_marchman_2012,medial,familiar,teaching_incidental,medium,,As Familiar-Medial
+fernald_totlot,alearn,novel,test_nn,medium,,Test kreeb vs nonce
+fernald_totlot,learn,novel,test_nn,medium,,Test kreeb vs nonce
+fernald_totlot,new,novel,test_me,medium,,ME trial: toma vs familiar object (banana). Distractor novelty is mis-coded as novel in Peekbank (import script uses the target label)
+fernald_totlot,ylearn,novel,test_nn,medium,TRUE,Test kreeb vs nonce (21 mo)
+fernald_totlot,zteach,novel,teaching,medium,,Teaching trial: novel object mapped to novel label (kreeb or nonce)
+frank_tablet_2016,FAMILIAR-novel,familiar,familiar_me_control,high,,"ME control: familiar word, familiar target vs novel distractor"
+frank_tablet_2016,familiar-NOVEL,novel,test_me,high,,"ME inference: novel word, novel target vs familiar distractor"
+moore_bergelson_2022_verb,*,novel,exclude,high,,"Mispronunciations, not novel words"
+pomper_dimy,animal,novel,test_untaught,high,,"Novel word (-y ending) with two unfamiliar objects, no teaching: tests a morphological cue, not learning. Not in main analysis."
+pomper_dimy,vehicle,novel,test_untaught,high,,As animal
+pomper_salientme,high_salience_selection,familiar,familiar_me_control,high,,"Familiar word, familiar target vs novel distractor"
+pomper_salientme,high_salience_selection,novel,test_me,high,,"Referent-selection (ME) trial in the learning phase: novel word, novel target vs familiar distractor; 3 per novel word"
+pomper_salientme,high_salience_test,familiar,familiar,high,,Familiar filler
+pomper_salientme,high_salience_test,novel,test_nn,high,,Test: two novel objects from the same salience condition
+pomper_salientme,low_salience_selection,familiar,familiar_me_control,high,,
+pomper_salientme,low_salience_selection,novel,test_me,high,,As high_salience_selection
+pomper_salientme,low_salience_test,familiar,familiar,high,,
+pomper_salientme,low_salience_test,novel,test_nn,high,,
+pomper_yumme,Fam-ME-Food,familiar,familiar_me_control,medium,,
+pomper_yumme,Fam-ME-Non,familiar,familiar_me_control,medium,,
+pomper_yumme,Food-Fam,familiar,familiar_me_control,medium,,
+pomper_yumme,Food-Nov,novel,test_nf,medium,,v5: taught novel word vs familiar distractor (after 4 isolated teaching trials not in Peekbank)
+pomper_yumme,Nov-Eat,novel,exclude,high,,"Verb-only prompt ('which one can you eat?'), no novel label"
+pomper_yumme,Nov-ME-Food,novel,test_me,medium,,"v4 ME trial (novel word, novel target vs familiar food); also the v4 'teaching' of the novel labels"
+pomper_yumme,Nov-ME-Non,novel,test_me,medium,,v4 ME trial vs familiar non-food
+pomper_yumme,Nov-Name,novel,test_nn,medium,,"v4: two novel objects, neutral carrier"
+pomper_yumme,Toy-Fam,familiar,familiar_me_control,medium,,
+pomper_yumme,Toy-Nov,novel,test_nf,medium,,v5: as Food-Nov
+reflook_socword,brief,novel,test_nn,medium,,bosa vs novel distractor; taught in learning videos not in Peekbank (brief social cue)
+reflook_socword,extended,novel,test_nn,medium,,manu vs novel distractor; taught in learning videos (extended social cue)
+reflook_v4,novel,novel,test_nn,medium,,toma vs fep; taught in learning videos not in Peekbank
+swingley_aslin_2002,*,novel,exclude,high,,"Mispronunciations, not novel words"
+yurovsky_2017,ME_Balanced,novel,test_me,medium,,"ME: new word dax, distractor is the taught object (both objects novel)"
+yurovsky_2017,ME_NonSalient,novel,test_me,medium,,
+yurovsky_2017,ME_Salient,novel,test_me,medium,,
+yurovsky_2017,Novel_Balanced,novel,test_nn,medium,,modi vs the other toy; modi taught in 4 learning trials not in Peekbank
+yurovsky_2017,Novel_NonSalient,novel,test_nn,medium,,
+yurovsky_2017,Novel_Salient,novel,test_nn,medium,,

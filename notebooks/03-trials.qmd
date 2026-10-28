@@ -6,6 +6,7 @@
 #| label: setup
 library(tidyverse)
 library(here)
+i_am("notebooks/03-trials.qmd")  # _quarto.yml would otherwise make notebooks/ the root
 
 d <- readRDS(here("cache", "01_peekbank_novel.rds"))
 trial_exposures <- readRDS(here("cache", "02_trial_exposures.rds"))

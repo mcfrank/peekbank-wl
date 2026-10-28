@@ -6,6 +6,7 @@
 #| label: setup
 library(tidyverse)
 library(here)
+i_am("notebooks/02-exposure-coding.qmd")  # _quarto.yml would otherwise make notebooks/ the root
 
 d <- readRDS(here("cache", "01_peekbank_novel.rds"))
 design <- read_csv(here("metadata", "exposure_design.csv"), show_col_types = FALSE)
@@ -75,7 +76,8 @@ design_exact <- design |> filter(condition != "*")
 design_any <- design |> filter(condition == "*") |> select(-condition)
 
 trials <- trials |>
-  left_join(design_exact |> select(dataset_name, condition, target_novelty, role, confidence),
+  left_join(design_exact |> select(dataset_name, condition, target_novelty, role, confidence,
+                                   needs_prior_session),
             by = c("dataset_name", "condition", "target_novelty")) |>
   left_join(design_any |> select(dataset_name, target_novelty, role_any = role,
                                  confidence_any = confidence),
@@ -83,7 +85,8 @@ trials <- trials |>
   mutate(role = coalesce(role, role_any,
                          if_else(target_novelty == "familiar" & distractor_novelty == "familiar",
                                  "familiar", "uncoded")),
-         confidence = coalesce(confidence, confidence_any)) |>
+         confidence = coalesce(confidence, confidence_any),
+         needs_prior_session = coalesce(needs_prior_session, FALSE)) |>
   select(-role_any, -confidence_any)
 
 trials |> count(dataset_name, role) |>
@@ -144,6 +147,75 @@ trials |>
   pivot_wider(names_from = exposure_type, values_from = n, values_fill = 0)
 ```
 
+## Missing trials
+
+Some administrations have gaps in `trial_order`: trials that were presented but are absent from
+Peekbank, presumably dropped at import for lack of usable gaze data. The sessions continue past
+the gaps, so the child still heard those trials. A missing teaching trial would undercount teaching.
+
+These designs use fixed trial lists, so we reconstruct each gap from *donor* administrations of the
+same dataset. A donor has the missing position, matches the gappy administration exactly
+(condition, target, distractor, phrase) at every position both have, and shares at least 80% of its
+trials. A gap is filled only when all donors agree on what was there. Gaps after an
+administration's last trial are not filled, because the session may have ended. Positions that
+are absent in *every* administration of a dataset (e.g. the breaks in `pomper_salientme`, or the
+un-imported teaching phase of `pomper_yumme` v5) are never filled. External teaching covers the latter.
+
+```{r}
+#| label: missing-trials
+slots <- trials |>
+  filter(role != "exclude") |>
+  transmute(dataset_name, administration_id, trial_order,
+            key = paste(condition, target_label, distractor_label,
+                        coalesce(str_squish(full_phrase), ""), sep = "|"),
+            exposure_type, exposed_word, tokens)
+
+gaps <- slots |>
+  summarise(hi = max(trial_order), .by = c(dataset_name, administration_id)) |>
+  left_join(slots |> summarise(first = min(trial_order), .by = dataset_name), by = "dataset_name") |>
+  mutate(trial_order = map2(first, hi, seq)) |>
+  unnest(trial_order) |>
+  select(dataset_name, administration_id, trial_order) |>
+  anti_join(slots, by = c("dataset_name", "administration_id", "trial_order"))
+
+n_slots <- slots |> count(dataset_name, a = administration_id, name = "n_a")
+
+donors <- slots |>
+  semi_join(distinct(gaps, dataset_name, administration_id), by = c("dataset_name", "administration_id")) |>
+  select(dataset_name, a = administration_id, trial_order, key_a = key) |>
+  inner_join(slots |> select(dataset_name, b = administration_id, trial_order, key_b = key),
+             by = c("dataset_name", "trial_order"), relationship = "many-to-many") |>
+  filter(a != b) |>
+  summarise(shared = n(), mismatches = sum(key_a != key_b), .by = c(dataset_name, a, b)) |>
+  left_join(n_slots, by = c("dataset_name", "a")) |>
+  filter(mismatches == 0, shared >= .8 * n_a)
+
+reconstructed <- gaps |>
+  rename(a = administration_id) |>
+  inner_join(donors |> select(dataset_name, a, b), by = c("dataset_name", "a"),
+             relationship = "many-to-many") |>
+  inner_join(slots |> rename(b = administration_id), by = c("dataset_name", "b", "trial_order")) |>
+  summarise(n_donors = n_distinct(b), n_keys = n_distinct(key),
+            across(c(key, exposure_type, exposed_word, tokens), first),
+            .by = c(dataset_name, a, trial_order)) |>
+  rename(administration_id = a)
+
+gaps |>
+  left_join(reconstructed, by = c("dataset_name", "administration_id", "trial_order")) |>
+  mutate(status = case_when(is.na(n_donors) ~ "no_donor",
+                            n_keys > 1 ~ "ambiguous",
+                            !is.na(exposure_type) ~ paste0("filled_", exposure_type),
+                            TRUE ~ "filled_other")) |>
+  count(dataset_name, status) |>
+  pivot_wider(names_from = status, values_from = n, values_fill = 0)
+
+reconstructed <- reconstructed |>
+  filter(n_keys == 1, !is.na(exposure_type), !is.na(exposed_word))
+```
+
+Unfilled gaps mean teaching can still be undercounted. `teaching_observed` (below) counts only
+trials present in Peekbank, as a sensitivity check.
+
 ## Counting prior exposures
 
 For each trial with a novel target word, we count exposures to that word on trials that came
@@ -154,10 +226,18 @@ across datasets.
 
 ```{r}
 #| label: count
+admin_info <- trials |> distinct(administration_id, subject_id, age)
+
 events <- trials |>
   filter(!is.na(exposure_type), !is.na(exposed_word)) |>
   select(dataset_name, subject_id, administration_id, age, trial_order,
-         word = exposed_word, exposure_type, tokens)
+         word = exposed_word, exposure_type, tokens) |>
+  mutate(reconstructed = FALSE) |>
+  bind_rows(reconstructed |>
+              left_join(admin_info, by = "administration_id") |>
+              select(dataset_name, subject_id, administration_id, age, trial_order,
+                     word = exposed_word, exposure_type, tokens) |>
+              mutate(reconstructed = TRUE))
 
 # order administrations within child
 admin_order <- trials |>
@@ -172,7 +252,7 @@ targets <- trials |>
   filter(target_novelty == "novel") |>
   left_join(admin_order, by = "administration_id") |>
   select(trial_id, administration_id, dataset_name, subject_id, session, trial_order,
-         word = target_label, distractor_word = distractor_label)
+         needs_prior_session, word = target_label, distractor_word = distractor_label)
 
 count_prior <- function(targets, events, word_col) {
   targets |>
@@ -191,6 +271,11 @@ count_prior <- function(targets, events, word_col) {
 
 prior <- count_prior(targets, events, "word")
 
+# teaching from trials present in Peekbank only (no reconstructed trials)
+prior_observed <- count_prior(targets, events |> filter(!reconstructed, exposure_type == "teaching"),
+                              "word") |>
+  rename_with(~ paste0(.x, "_observed"), -trial_id)
+
 # the same counts for the distractor word (on N-N trials it may also have been taught)
 prior_distractor <- count_prior(targets, events, "distractor_word") |>
   rename_with(~ paste0("distractor_", .x), -trial_id)
@@ -198,11 +283,14 @@ prior_distractor <- count_prior(targets, events, "distractor_word") |>
 exposure_cols <- c("teaching_session", "teaching_prev", "me_session", "me_prev",
                    "test_session", "test_prev")
 
+observed_cols <- c("teaching_session_observed", "teaching_prev_observed")
+
 exposures <- targets |>
-  select(trial_id, word, distractor_word) |>
+  select(trial_id, needs_prior_session, word, distractor_word) |>
   left_join(prior, by = "trial_id") |>
-  (\(x) { for (col in setdiff(exposure_cols, names(x))) x[[col]] <- NA_integer_; x })() |>
-  mutate(across(all_of(exposure_cols), ~ replace_na(.x, 0L))) |>
+  left_join(prior_observed, by = "trial_id") |>
+  (\(x) { for (col in setdiff(c(exposure_cols, observed_cols), names(x))) x[[col]] <- NA_integer_; x })() |>
+  mutate(across(all_of(c(exposure_cols, observed_cols)), ~ replace_na(.x, 0L))) |>
   left_join(prior_distractor |> select(trial_id, any_of("distractor_teaching_session")),
             by = "trial_id")
 
@@ -239,7 +327,26 @@ exposures <- exposures |>
     # teaching = this session + earlier sessions of the same child + external (outside the
     # imported trials); NA when the external count is not yet coded
     teaching = teaching_session + teaching_prev + teaching_external,
-    total_exposures = teaching + me_session + me_prev + test_session + test_prev)
+    teaching_observed = teaching_session_observed + teaching_prev_observed + teaching_external,
+    # tests that rely on teaching in an earlier session (fernald_totlot ylearn at 21 months,
+    # fernald_marchman_2012 FerretRetention) are uncoded when that session is not in Peekbank
+    across(c(teaching, teaching_observed), ~ if_else(needs_prior_session & teaching_prev == 0,
+                                                     NA_real_, .x)),
+    total_exposures = teaching + me_session + me_prev + test_session + test_prev) |>
+  select(-needs_prior_session)
+```
+
+How much does reconstruction change teaching on N–N tests?
+
+```{r}
+#| label: reconstruction-effect
+exposures |>
+  inner_join(trials |> filter(role == "test_nn") |> select(trial_id, dataset_name), by = "trial_id") |>
+  summarise(n_trials = n(),
+            changed = sum(teaching != teaching_observed, na.rm = TRUE),
+            mean_added = mean(teaching - teaching_observed, na.rm = TRUE),
+            uncoded_no_prior_session = sum(is.na(teaching) & has_external == FALSE),
+            .by = dataset_name)
 ```
 
 ## Result

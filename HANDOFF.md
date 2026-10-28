@@ -1,6 +1,20 @@
 # Handoff: novel word learning in Peekbank
 
-Status as of the end of the first session. Branch: `claude/adoring-goldberg-l4mtko`.
+Status as of the end of the second session (2026-10-28). Branch: `claude/adoring-goldberg-l4mtko`.
+
+**Session 2:** chapters 01–04 rendered with real data (release 2026.1). `data/derived/novel_trials.csv`
+and `notebooks/_freeze/` are committed. Changes this session:
+
+* `here::i_am()` in every chapter (current `here` treats `notebooks/_quarto.yml` as the root).
+* Missing-trial reconstruction in chapter 02 (see Gotchas). `teaching_observed` keeps the
+  un-reconstructed count.
+* `needs_prior_session` column in `exposure_design.csv`: fernald_totlot `ylearn` and
+  fernald_marchman_2012 `FerretRetention` get NA teaching when the teaching session is not in Peekbank
+  (4 ylearn trials).
+* Sensitivity models (observed-only teaching; dataset as fixed effect) at the end of chapter 04.
+* `render.sh` sets a UTF-8 locale if none is set.
+
+Mike has written to Heidi Baumgartner and Virginia Marchman about hit-list items 1–4.
 
 ## Goal
 
@@ -44,9 +58,6 @@ recognition…"); its code is at https://github.com/peekbank/peekbank-developmen
   those datasets drop out of the analysis until they are filled.
 * `metadata/novel_words.csv`: recodes fernald_marchman_2012's generic "novel" label to "deebo".
 
-**Nothing has been rendered with real data yet.** The first session had no Redivis token.
-Chapters 02–04 were run end to end on a synthetic fixture (real metadata, fake gaze samples) to
-check the code paths only; those numbers mean nothing.
 
 ## Environment setup for a fresh container (about 10 minutes)
 
@@ -98,27 +109,32 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
   the phrase ("the dog on the walem"). Chapter 02 parses this from `full_phrase`.
 * **adams_marchman_2018:** has no phrases. Its `noveltest` (label "novel") cannot be counted, so it
   is coded `test_nn_incidental` and left out of the main analysis.
+* **Trials missing from Peekbank.** Many Fernald-lab administrations (and a few byers-heinlein ones)
+  have gaps in `trial_order`. Those trials are not in `trials` at all (every trial there *is* linked
+  to an administration), presumably dropped at import for lack of gaze data. A missing teaching trial
+  undercounted teaching (e.g. FerretTest at 1–3 instead of 4 for ~100 trials). Chapter 02 now fills
+  a gap from donor administrations with an identical trial list (exact match on every shared position,
+  ≥80% overlap, all donors agree). It never fills trailing gaps, or positions absent from every
+  administration (pomper_salientme breaks; pomper_yumme v5 un-imported teaching). After this,
+  6 FerretTest and 4 byers-heinlein N–N trials remain below the design count.
+* **Same-age administrations** (fernald_marchman_2012, 200 pairs) are ordered by `administration_id`.
+  This matches the content in all 200 pairs (Medial → Medial+Test; Exposure → Retention).
+* **`here`:** recent versions stop at `notebooks/` because of `_quarto.yml`; each chapter calls `here::i_am()`.
+* **Locale:** cloud containers default to POSIX, so en dashes print as `<U+2013>`; `render.sh` exports `LANG=C.UTF-8`.
 * **Freeze:** `freeze: auto` keys on chapter source. After editing `metadata/*.csv`, delete
   `notebooks/_freeze/<chapter>` before re-rendering.
 
 ## Next steps
 
-1. Install the environment (above), confirm the token, then `cd notebooks && ./render.sh 01-data.qmd`.
-   If `pb$subset$aoi_timepoints(dataset_name %in% !!novel_datasets)` fails to translate, loop over
-   datasets with `==`.
-2. Render 02. Sanity-check the outputs against the source designs:
-   * the role table: no `uncoded` rows
-   * the exposure summary, e.g. adams_marchman_2018 modi/panju should show 4 Exp trials then tests;
-     fernald_marchman_2012 FerretExposure counts per child; byers-heinlein_2022 6 training trials per word
-   * look at a few individual children's trial sequences
-   * yurovsky_2017 did not appear in the fixture run (a fixture artifact); confirm it shows up
-     with real data
-3. Fill the pending rows of `metadata/external_teaching.csv` from the source papers
-   (see the hit list below; Mike is chasing the ones we could not access).
-4. Render 03 and 04. Commit `data/derived/novel_trials.csv` and `notebooks/_freeze/`.
-5. Report the figure, the coverage table (trials × exposures × age), and the model to Mike, with
-   honest caveats on sparsity.
-6. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
+1. ~~Render 01–04 with real data; sanity-check the coding~~ (done in session 2).
+2. When Baumgartner / Marchman reply: fill `metadata/external_teaching.csv` (baumgartner_2014 is
+   still NA and drops out: 269 kept N–N trials, 12–13 mo, the only sub-18-month data outside the
+   reflook/yurovsky tablets) and confirm the Fernald-lab protocols. Then delete `notebooks/_freeze/02-*`
+   through `04-*` and re-render 02–04.
+3. Teaching is largely confounded with dataset, test position and recency (immediate tests at T=1
+   are right after one exposure; later tests come later in the session). Consider trial position or
+   test number as a covariate.
+4. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
 
 ## Source-paper coding status
 

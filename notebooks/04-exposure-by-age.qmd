@@ -6,6 +6,7 @@
 #| label: setup
 library(tidyverse)
 library(here)
+i_am("notebooks/04-exposure-by-age.qmd")  # _quarto.yml would otherwise make notebooks/ the root
 library(lme4)
 library(lmerTest)
 library(broom.mixed)
@@ -146,4 +147,33 @@ pred_grid |>
   scale_colour_viridis_d(end = .9) +
   labs(x = "Teaching exposures (log scale)", y = "Predicted proportion target looking",
        colour = "Age (months)")
+```
+
+## Sensitivity
+
+Teaching varies mostly *between* datasets: most datasets have one or two teaching levels. Only
+`reflook_socword`, `adams_marchman_2018`, `fernald_marchman_2012`, and `fernald_totlot` vary it within
+the dataset. Two checks on the primary model:
+
+* **observed**: teaching counted only from trials present in Peekbank, without the reconstructed
+  missing trials (@sec-exposure)
+* **within-dataset**: dataset as a fixed effect, so the teaching slope is estimated only from
+  within-dataset variation
+
+```{r}
+#| label: sensitivity
+m_observed <- lmer(long_window_accuracy ~ log_teaching_observed * log_age +
+                     (1 | dataset_name) + (1 | subject_id) + (1 | target_label),
+                   data = nn_model |> mutate(log_teaching_observed = log(teaching_observed + 1)))
+
+m_within <- lmer(long_window_accuracy ~ log_teaching * log_age + dataset_name +
+                   (1 | subject_id) + (1 | target_label),
+                 data = nn_model)
+
+bind_rows(primary = tidy(m, effects = "fixed", conf.int = TRUE),
+          observed = tidy(m_observed, effects = "fixed", conf.int = TRUE),
+          within_dataset = tidy(m_within, effects = "fixed", conf.int = TRUE),
+          .id = "model") |>
+  filter(str_detect(term, "teaching|^log_age$")) |>
+  select(model, term, estimate, std.error, conf.low, conf.high, p.value)
 ```
