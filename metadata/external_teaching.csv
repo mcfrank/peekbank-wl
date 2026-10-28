@@ -1,0 +1,6 @@
+dataset_name,condition_regex,word,teaching_events,teaching_tokens,confidence,source,notes
+baumgartner_2014,_novel$,*,NA,NA,pending,"Baumgartner (2014) dissertation","Habituation to lif/neem; number of habituation trials may vary by infant"
+pomper_yumme,^(Food|Toy)-Nov$,*,1,NA,medium,"Peekbank README (pomper_yumme)","v5 began with a 4-trial teaching phase, each novel object labeled once in isolation (not imported). Tokens per trial unknown"
+reflook_socword,^(brief|extended)$,*,NA,NA,pending,"Yurovsky, Wade & Frank (2013); Yurovsky et al. ms Expt 3","Learning videos not imported"
+reflook_v4,^novel$,*,NA,NA,pending,"Yurovsky et al. (2025) PsyArXiv bcrj2, Expt 1","Learning videos not imported"
+yurovsky_2017,^(Novel|ME)_,modi,NA,NA,pending,"Yurovsky & Frank (2017) Dev Sci","4 learning trials not imported; only modi is taught (dax is the ME word)"

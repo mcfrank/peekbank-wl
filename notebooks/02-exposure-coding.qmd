@@ -1,0 +1,264 @@
+# Exposure coding {#sec-exposure}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+
+d <- readRDS(here("cache", "01_peekbank_novel.rds"))
+design <- read_csv(here("metadata", "exposure_design.csv"), show_col_types = FALSE)
+external <- read_csv(here("metadata", "external_teaching.csv"), show_col_types = FALSE)
+word_recode <- read_csv(here("metadata", "novel_words.csv"), show_col_types = FALSE)
+```
+
+Every trial in a novel-word dataset gets a **role**. Then, for each trial whose target is a novel
+word, we count how many times that word was heard *before* this trial, split by type of exposure:
+
+* **teaching**: the word labels its referent before testing (role `teaching` or `teaching_incidental`)
+* **ME**: a referent-selection trial with a novel and a familiar object, or a new word against a
+  previously taught object (role `test_me`)
+* **test**: an earlier test trial with this word as the target (roles `test_nn`, `test_nf`, `test_untaught`)
+
+Teaching that happened outside the imported trials (learning videos, habituation, isolated
+teaching trials that Peekbank did not import) is added from `metadata/external_teaching.csv`.
+
+## Trial table
+
+Peekbank links trials to administrations only through the timepoint table, so we recover that link first.
+
+```{r}
+#| label: trial-table
+stim <- d$stimuli |>
+  select(stimulus_id, novelty = stimulus_novelty, label = english_stimulus_label)
+
+trial_admin <- d$aoi_timepoints |>
+  distinct(administration_id, trial_id)
+
+trials <- d$trials |>
+  filter(dataset_name %in% d$novel_datasets) |>
+  select(trial_id, trial_order, trial_type_id, excluded, dataset_name) |>
+  inner_join(trial_admin, by = "trial_id") |>
+  left_join(d$trial_types |>
+              select(trial_type_id, condition, full_phrase, full_phrase_language,
+                     target_id, distractor_id, vanilla_trial),
+            by = "trial_type_id") |>
+  left_join(stim |> rename(target_id = stimulus_id, target_novelty = novelty,
+                           target_label = label), by = "target_id") |>
+  left_join(stim |> rename(distractor_id = stimulus_id, distractor_novelty = novelty,
+                           distractor_label = label), by = "distractor_id") |>
+  left_join(d$administrations |> select(administration_id, subject_id, age),
+            by = "administration_id") |>
+  # recode generic novel labels (e.g. "novel" -> "deebo")
+  left_join(word_recode |> select(dataset_name, target_label = original_label, target_word = word),
+            by = c("dataset_name", "target_label")) |>
+  left_join(word_recode |> select(dataset_name, distractor_label = original_label, distractor_word = word),
+            by = c("dataset_name", "distractor_label")) |>
+  mutate(target_label = coalesce(target_word, target_label),
+         distractor_label = coalesce(distractor_word, distractor_label)) |>
+  select(-target_word, -distractor_word)
+```
+
+## Roles
+
+Roles come from `exposure_design.csv`, keyed by dataset × condition × target novelty.
+`*` in the condition column matches any condition. Trials not listed there are `familiar` when
+both stimuli are familiar, and `uncoded` otherwise.
+
+```{r}
+#| label: roles
+design_exact <- design |> filter(condition != "*")
+design_any <- design |> filter(condition == "*") |> select(-condition)
+
+trials <- trials |>
+  left_join(design_exact |> select(dataset_name, condition, target_novelty, role, confidence),
+            by = c("dataset_name", "condition", "target_novelty")) |>
+  left_join(design_any |> select(dataset_name, target_novelty, role_any = role,
+                                 confidence_any = confidence),
+            by = c("dataset_name", "target_novelty")) |>
+  mutate(role = coalesce(role, role_any,
+                         if_else(target_novelty == "familiar" & distractor_novelty == "familiar",
+                                 "familiar", "uncoded")),
+         confidence = coalesce(confidence, confidence_any)) |>
+  select(-role_any, -confidence_any)
+
+trials |> count(dataset_name, role) |>
+  pivot_wider(names_from = role, values_from = n, values_fill = 0)
+```
+
+```{r}
+#| label: uncoded
+trials |> filter(role == "uncoded") |> count(dataset_name, condition, target_novelty, distractor_novelty)
+```
+
+## Which word does each trial expose?
+
+For most trials this is the target label. Training trials in `byers-heinlein_2022` and the medial
+trials in `fernald_marchman_2012` have a *familiar* target, and the novel word appears only in
+the phrase ("Do you see the dog on the walem?", "There's a baby on the deebo"). For those trials
+we find the dataset's novel words in `full_phrase`. We count tokens (repetitions within the
+phrase) where a phrase exists.
+
+```{r}
+#| label: exposed-word
+dataset_words <- trials |>
+  filter(target_novelty == "novel") |>
+  distinct(dataset_name, word = target_label)
+
+find_word <- function(phrase, words) {
+  if (is.na(phrase)) return(NA_character_)
+  hit <- words[str_detect(str_to_lower(phrase), paste0("\\b", str_to_lower(words), "\\b"))]
+  if (length(hit) == 0) NA_character_ else hit[1]
+}
+
+word_lists <- dataset_words |> summarise(words = list(word), .by = dataset_name)
+
+trials <- trials |>
+  left_join(word_lists, by = "dataset_name") |>
+  mutate(phrase_word = map2_chr(full_phrase, words, \(p, w) find_word(p, w %||% character()))) |>
+  select(-words) |>
+  mutate(
+    exposed_word = case_when(
+      role %in% c("teaching", "teaching_incidental") & target_novelty == "familiar" ~ phrase_word,
+      target_novelty == "novel" ~ target_label,
+      TRUE ~ NA_character_),
+    # a medial trial that says "over there" does not label the novel object
+    role = if_else(role == "teaching_incidental" & is.na(exposed_word), "familiar", role),
+    exposure_type = case_when(
+      role %in% c("teaching", "teaching_incidental") ~ "teaching",
+      role == "test_me" ~ "me",
+      role %in% c("test_nn", "test_nf", "test_untaught", "test_nn_incidental") ~ "test",
+      TRUE ~ NA_character_),
+    tokens = if_else(!is.na(exposed_word) & !is.na(full_phrase),
+                     str_count(str_to_lower(full_phrase),
+                               paste0("\\b", str_to_lower(coalesce(exposed_word, "")), "\\b")),
+                     NA_integer_))
+
+trials |>
+  filter(!is.na(exposure_type)) |>
+  count(dataset_name, exposure_type, exposed_word) |>
+  pivot_wider(names_from = exposure_type, values_from = n, values_fill = 0)
+```
+
+## Counting prior exposures
+
+For each trial with a novel target word, we count exposures to that word on trials that came
+earlier in the same administration (by `trial_order`). We also count exposures from the same
+child's *earlier* administrations in the same dataset, kept separate because some datasets test
+children twice about a week apart, and others 6 months apart.
+
+```{r}
+#| label: count
+events <- trials |>
+  filter(!is.na(exposure_type), !is.na(exposed_word)) |>
+  select(dataset_name, subject_id, administration_id, age, trial_order,
+         word = exposed_word, exposure_type, tokens)
+
+# order administrations within child
+admin_order <- trials |>
+  distinct(dataset_name, subject_id, administration_id, age) |>
+  arrange(dataset_name, subject_id, age, administration_id) |>
+  mutate(session = row_number(), .by = c(dataset_name, subject_id)) |>
+  select(administration_id, session)
+
+events <- events |> left_join(admin_order, by = "administration_id")
+
+targets <- trials |>
+  filter(target_novelty == "novel") |>
+  left_join(admin_order, by = "administration_id") |>
+  select(trial_id, administration_id, dataset_name, subject_id, session, trial_order,
+         word = target_label, distractor_word = distractor_label)
+
+count_prior <- function(targets, events, word_col) {
+  targets |>
+    select(trial_id, dataset_name, subject_id, session, trial_order, word = all_of(word_col)) |>
+    inner_join(events |> rename(ev_session = session, ev_order = trial_order),
+               by = c("dataset_name", "subject_id", "word"),
+               relationship = "many-to-many") |>
+    mutate(when = case_when(ev_session == session & ev_order < trial_order ~ "session",
+                            ev_session < session ~ "prev",
+                            TRUE ~ NA_character_)) |>
+    filter(!is.na(when)) |>
+    count(trial_id, exposure_type, when) |>
+    pivot_wider(names_from = c(exposure_type, when), values_from = n,
+                names_glue = "{exposure_type}_{when}")
+}
+
+prior <- count_prior(targets, events, "word")
+
+# the same counts for the distractor word (on N-N trials it may also have been taught)
+prior_distractor <- count_prior(targets, events, "distractor_word") |>
+  rename_with(~ paste0("distractor_", .x), -trial_id)
+
+exposure_cols <- c("teaching_session", "teaching_prev", "me_session", "me_prev",
+                   "test_session", "test_prev")
+
+exposures <- targets |>
+  select(trial_id, word, distractor_word) |>
+  left_join(prior, by = "trial_id") |>
+  (\(x) { for (col in setdiff(exposure_cols, names(x))) x[[col]] <- NA_integer_; x })() |>
+  mutate(across(all_of(exposure_cols), ~ replace_na(.x, 0L))) |>
+  left_join(prior_distractor |> select(trial_id, any_of("distractor_teaching_session")),
+            by = "trial_id")
+
+if (!"distractor_teaching_session" %in% names(exposures)) exposures$distractor_teaching_session <- NA_integer_
+exposures <- exposures |>
+  mutate(distractor_teaching_session = replace_na(distractor_teaching_session, 0L))
+```
+
+### External teaching
+
+```{r}
+#| label: external
+external
+```
+
+```{r}
+#| label: add-external
+ext_match <- trials |>
+  filter(target_novelty == "novel") |>
+  select(trial_id, dataset_name, condition, word = target_label) |>
+  inner_join(external, by = "dataset_name", relationship = "many-to-many") |>
+  filter(str_detect(condition, condition_regex), word.y == "*" | word.x == word.y) |>
+  select(trial_id, teaching_external = teaching_events,
+         external_confidence = confidence)
+
+stopifnot(!any(duplicated(ext_match$trial_id)))
+
+exposures <- exposures |>
+  left_join(ext_match, by = "trial_id") |>
+  mutate(
+    has_external = trial_id %in% ext_match$trial_id,
+    teaching_external = if_else(has_external, teaching_external, 0),
+    # teaching = in-session + external; NA when the external count is not yet coded
+    teaching = teaching_session + teaching_external,
+    teaching_cumulative = teaching + teaching_prev,
+    total_exposures = teaching + me_session + test_session)
+```
+
+## Result
+
+Teaching counts on N–N test trials by dataset:
+
+```{r}
+#| label: summary
+trial_exposures <- trials |>
+  filter(target_novelty == "novel") |>
+  select(trial_id, administration_id, subject_id, dataset_name, age, trial_order,
+         condition, role, confidence, excluded, full_phrase_language,
+         target_label, distractor_label, distractor_novelty) |>
+  left_join(exposures |> select(-word, -distractor_word), by = "trial_id")
+
+trial_exposures |>
+  filter(role == "test_nn") |>
+  group_by(dataset_name) |>
+  summarise(n_trials = n(),
+            teaching_coded = all(!is.na(teaching)),
+            teaching = paste(sort(unique(teaching)), collapse = ", "),
+            teaching_prev = paste(sort(unique(teaching_prev)), collapse = ", "),
+            me = paste(sort(unique(me_session)), collapse = ", "),
+            prior_tests = paste(range(test_session), collapse = "-"))
+
+saveRDS(trial_exposures, here("cache", "02_trial_exposures.rds"))
+```

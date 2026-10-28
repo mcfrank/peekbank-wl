@@ -1,0 +1,30 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Novel word learning in Peekbank"
+  subtitle: "Recognition accuracy by number of exposures, across age"
+  author: "Peekbank team"
+  date: today
+  chapters:
+    - index.qmd
+    - 01-data.qmd
+    - 02-exposure-coding.qmd
+    - 03-trials.qmd
+    - 04-exposure-by-age.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: show
+    df-print: paged
+    fig-width: 7
+    fig-height: 4.5
+
+execute:
+  freeze: auto
+  warning: false
+  message: false

@@ -1,0 +1,90 @@
+# Data {#sec-data}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(peekbankr)
+library(here)
+
+RELEASE <- "2026.1"
+CACHE <- here("cache", "01_peekbank_novel.rds")
+```
+
+We pull all metadata tables, find every dataset that has a novel word as a target or
+distractor stimulus, and download the AOI timepoints only for those datasets.
+The result is cached in `cache/`, which is gitignored. Delete the cache file to force a fresh pull.
+This requires a `REDIVIS_API_TOKEN` with the `data.metadata` scope.
+
+```{r}
+#| label: pull
+if (!file.exists(CACHE)) {
+  pb <- peekbank(RELEASE)
+
+  meta <- list(
+    datasets = pb$datasets,
+    subjects = pb$subjects,
+    administrations = pb$administrations,
+    trials = pb$trials,
+    trial_types = pb$trial_types,
+    stimuli = pb$stimuli
+  )
+
+  novel_datasets <- meta$stimuli |>
+    filter(stimulus_novelty == "novel") |>
+    distinct(dataset_name) |>
+    pull(dataset_name)
+
+  aoi <- pb$subset$aoi_timepoints(dataset_name %in% !!novel_datasets)
+
+  saveRDS(c(meta, list(aoi_timepoints = aoi, novel_datasets = novel_datasets,
+                       release = RELEASE)),
+          CACHE)
+}
+
+d <- readRDS(CACHE)
+stopifnot(d$release == RELEASE)
+```
+
+## Datasets with novel words
+
+```{r}
+#| label: novel-datasets
+novel_summary <- d$administrations |>
+  filter(dataset_name %in% d$novel_datasets) |>
+  group_by(dataset_name) |>
+  summarise(n_subjects = n_distinct(subject_id),
+            n_admins = n(),
+            min_age = min(age, na.rm = TRUE),
+            max_age = max(age, na.rm = TRUE)) |>
+  left_join(d$datasets |> select(dataset_name, shortcite), by = "dataset_name") |>
+  relocate(shortcite, .after = dataset_name)
+
+novel_summary
+```
+
+Not all of these are novel-word *learning* datasets. Two code mispronunciations as "novel"
+(`swingley_aslin_2002`, `moore_bergelson_2022_verb`); they are excluded in @sec-exposure.
+
+## Full citations
+
+```{r}
+#| label: citations
+d$datasets |>
+  filter(dataset_name %in% d$novel_datasets) |>
+  select(dataset_name, cite)
+```
+
+## Timepoint data
+
+```{r}
+#| label: aoi-summary
+d$aoi_timepoints |>
+  left_join(d$administrations |> select(administration_id, dataset_name),
+            by = "administration_id") |>
+  group_by(dataset_name) |>
+  summarise(n_admins = n_distinct(administration_id),
+            n_trials = n_distinct(trial_id),
+            n_samples = n())
+```

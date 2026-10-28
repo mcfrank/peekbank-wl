@@ -1,0 +1,56 @@
+# Overview {.unnumbered}
+
+{{< include _caution.qmd >}}
+
+**Question.** What is the form of the relationship between the number of times a child has been
+taught a novel word and their subsequent recognition of it, and how does that relationship change
+with age?
+
+The target figure is word-recognition accuracy (proportion target looking) as a function of
+(log) number of teaching exposures, with separate curves for children of different ages.
+
+**Data.** [Peekbank](https://peekbank.github.io/peekbank-website/) release 2026.1, accessed with
+`peekbankr`. Familiar-word analyses of Peekbank (Frank et al., 2025) excluded novel-word trials;
+this book pulls those trials out and recodes them with the exposure history of each word.
+
+## Key definitions
+
+| Term | Definition |
+|---|---|
+| **Teaching exposure** | A labeling of a novel word in which the referent is disambiguated *before* testing (ostensive naming, verb-supported naming, habituation, the novel object named under a familiar one). This is the main predictor. |
+| **ME exposure** | A mutual-exclusivity / referent-selection trial: novel word heard with a novel object and a familiar object (or a previously taught object). Counted separately; not teaching. |
+| **Test exposure** | An earlier test trial on which the word was heard. Counted separately. |
+| **Total exposures** | Teaching + ME + earlier test labelings. |
+| **N–N test** | Test trial with a novel target and a novel distractor. The primary outcome. |
+| **N–F test** | Novel target vs familiar distractor (ME-type). A separate analysis, since a child can succeed by exclusion without learning the word. |
+
+## Analysis choices
+
+Following Frank et al. (2025), with the exceptions noted:
+
+* Accuracy is the proportion of target looking 200–4000 ms after label onset (the "long window"),
+  among looks to target or distractor.
+* Trials with less than 50% valid data in the window are dropped, as are trials marked excluded in Peekbank.
+* **Exception:** no minimum number of trials per child, because novel-word studies have few test trials.
+* Bilingual datasets are kept.
+* The main age range of interest is 1–3 years.
+* The model is `lmer(accuracy ~ log(teaching + 1) * log(age) + (1 | dataset) + (1 | subject) + (1 | word))`.
+
+## Chapters
+
+| Chapter | Contents |
+|---|---|
+| @sec-data | Pull metadata and gaze data for every dataset with novel words |
+| @sec-exposure | Code each trial's role and count prior exposures of each word |
+| @sec-trials | Trial-level accuracy, exclusions, final analysis dataset |
+| @sec-exposure-age | Accuracy by exposures across age |
+
+## Hand-coded inputs
+
+All hand coding lives in `metadata/`:
+
+* `exposure_design.csv` assigns a role (teaching, test_nn, test_me, …) to each dataset × condition.
+  It includes a confidence column and notes on the source of each decision.
+* `external_teaching.csv` records teaching that happened outside the imported trials, such as
+  learning videos and habituation phases, coded from the source papers.
+* `novel_words.csv` recodes novel-word labels that Peekbank stores generically.

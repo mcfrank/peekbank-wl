@@ -1,0 +1,11 @@
+::: {.callout-important}
+## AI-generated — not for publication
+The code and prose in this book were written by an AI agent under human direction; they have not been
+verified line by line and must not be published or cited as-is.
+:::
+
+::: {.callout-warning}
+## Preliminary & unvetted analysis
+Exploratory analysis. Exposure counts were hand-coded from import scripts and source papers and are
+still being checked; see the confidence column in `metadata/exposure_design.csv`.
+:::
