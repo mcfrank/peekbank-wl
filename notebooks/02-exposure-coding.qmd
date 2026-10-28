@@ -23,6 +23,9 @@ word, we count how many times that word was heard *before* this trial, split by 
 
 Teaching that happened outside the imported trials (learning videos, habituation, isolated
 teaching trials that Peekbank did not import) is added from `metadata/external_teaching.csv`.
+Rows there match on dataset, a regex on condition, the word (`*` = any), and optionally
+`trial_order`. The `trial_order` key is for designs where teaching is interleaved with
+tests in a fixed order (`reflook_socword`).
 
 ## Trial table
 
@@ -219,9 +222,10 @@ external
 #| label: add-external
 ext_match <- trials |>
   filter(target_novelty == "novel") |>
-  select(trial_id, dataset_name, condition, word = target_label) |>
+  select(trial_id, dataset_name, condition, trial_order, word = target_label) |>
   inner_join(external, by = "dataset_name", relationship = "many-to-many") |>
-  filter(str_detect(condition, condition_regex), word.y == "*" | word.x == word.y) |>
+  filter(str_detect(condition, condition_regex), word.y == "*" | word.x == word.y,
+         is.na(trial_order.y) | trial_order.x == trial_order.y) |>
   select(trial_id, teaching_external = teaching_events,
          external_confidence = confidence)
 

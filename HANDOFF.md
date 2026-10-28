@@ -111,6 +111,8 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
    * the exposure summary, e.g. adams_marchman_2018 modi/panju should show 4 Exp trials then tests;
      fernald_marchman_2012 FerretExposure counts per child; byers-heinlein_2022 6 training trials per word
    * look at a few individual children's trial sequences
+   * yurovsky_2017 did not appear in the fixture run (a fixture artifact); confirm it shows up
+     with real data
 3. Fill the pending rows of `metadata/external_teaching.csv` from the source papers
    (see the hit list below; Mike is chasing the ones we could not access).
 4. Render 03 and 04. Commit `data/derived/novel_trials.csv` and `notebooks/_freeze/`.
@@ -118,6 +120,42 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
    honest caveats on sparsity.
 6. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
 
-## Source papers: hit list
+## Source-paper coding status
 
-See the section below, filled in from the paper search at the end of session 1.
+**Coded from accessible sources (in `metadata/external_teaching.csv` or counted in-data):**
+
+| Dataset | Teaching | Source |
+|---|---|---|
+| yurovsky_2017 | modi: 4 learning trials × 3 labelings, all before test; dax never taught (ME word) | Yurovsky & Frank (2017) Dev Sci, PMC4870162 |
+| reflook_v4 | 3 naming events × 3 labelings per word, all before test | Yurovsky et al. ms Expt 1 (callab.uchicago.edu/papers/ywkghf-ur.pdf); github.com/dyurovsky/refword |
+| reflook_socword | learning trials (3 labelings each) **interleaved** with tests in one fixed order. Teaching before a test = 1–4 by `trial_order`; verified against Peekbank's trial_order × condition | Yurovsky, Wade & Frank (2013) CogSci; refword `stimuli/soc_word_stimuli.docx` |
+| byers-heinlein_2022 | 6 training trials per word, 1 token each (in data, parsed from phrases) | Byers-Heinlein et al. (2022), PMC8992731 |
+| pomper_salientme | 0 teaching; 3 ME referent-selection trials per word, 1 token each, all before test, no feedback | Pomper & Saffran (2019) Child Dev, PMC6128788 |
+
+**Hit list: still needed (Mike is chasing these):**
+
+1. Baumgartner, H. A. (2014). *Understanding the Role of Non-Contrastive Variability in Word
+   Learning and Visual Attention in Infancy* [Doctoral dissertation, UC Davis]. ProQuest 3685177.
+   Need: labelings per habituation trial, and the habituation criterion and min/max number of
+   habituation trials (ideally per-infant counts). Until then this dataset has NA teaching.
+2. Fernald, A., & Marchman, V. A. (2012). *Child Development, 83*(1), 203–222. The 24/30-month
+   "Ferret" task (manju/tempo; Exposure, ImmTest, Test, Retention) and the "deebo" medial task are
+   not described in the paper. Need: the protocol, whether all exposure trials are in the data, and
+   the session structure. The deebo paradigm is attributed to Fernald, Zangl, Portillo & Marchman
+   (2008), "Looking while listening", in *Developmental Psycholinguistics* (pp. 97–135); not accessed.
+3. Adams, K. A., Marchman, V. A., et al. (2018). *Child Development, 89*(5), 1674–1690. Need: the
+   modi/panju protocol (Exp1–4, ImTest, Test2–5), and how the word in `noveltest` was introduced.
+   The closest published design is Bion, Borovsky & Fernald (2013), *Cognition, 126*, 39–53
+   (4 ostensive labelings per word), which is unconfirmed as the same procedure.
+4. Fernald, A., Perfors, A., & Marchman, V. A. (2006). *Developmental Psychology, 42*(1), 98–116.
+   The novel-word trials (zteach / learn / ylearn with kreeb and nonce; `new` with toma) are probably
+   among the paper's unexplained "filler" trials. Need: teaching structure, and whether the
+   21-month ylearn tests rely on 18-month teaching or new teaching.
+5. Pomper, R., & Saffran, J. R. (2018). *More than distractors: Familiar objects influence
+   toddlers' semantic representations in novel word learning.* ICIS poster, Philadelphia.
+   Need: the v5 isolated-teaching phase (tokens per trial) and the v4 design. Coded provisionally
+   as 1 teaching event per word for v5.
+6. Pomper & Saffran, unpublished "Dimy" study. Low priority: there is no teaching, so it is
+   excluded from the main analysis.
+
+Items 2–4 are Fernald/Marchman lab tasks; Virginia Marchman is the likely source.
