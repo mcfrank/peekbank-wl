@@ -132,9 +132,14 @@ tidy(m, effects = "fixed", conf.int = TRUE)
 
 ```{r}
 #| label: fig-model
-#| fig-cap: "Model predictions (fixed effects) for accuracy by teaching exposures at representative ages, over the observed range of exposures."
-pred_grid <- expand_grid(age = c(15, 21, 27, 33),
-                         teaching = seq(0, max(nn_model$teaching), length.out = 50)) |>
+#| fig-cap: "Model predictions (fixed effects) for accuracy by teaching exposures at representative ages, each over the range of exposures observed within 3 months of that age."
+# each age's curve spans the teaching range observed within 3 months of that age
+pred_grid <- tibble(age = c(15, 21, 27, 33)) |>
+  mutate(teaching = map(age, \(a) {
+    obs <- nn_model$teaching[abs(nn_model$age - a) <= 3]
+    seq(min(obs), max(obs), length.out = 50)
+  })) |>
+  unnest(teaching) |>
   mutate(log_age = log(age / 24), log_teaching = log(teaching + 1))
 
 pred_grid$pred <- predict(m, newdata = pred_grid, re.form = NA)
@@ -176,4 +181,183 @@ bind_rows(primary = tidy(m, effects = "fixed", conf.int = TRUE),
           .id = "model") |>
   filter(str_detect(term, "teaching|^log_age$")) |>
   select(model, term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+## Timing controls
+
+Teaching is entangled with when a test happens. Tests after one exposure come right after it and
+early in the session; tests after several exposures come later, after more tests. A flat or
+negative teaching slope could reflect fatigue or forgetting rather than a lack of learning.
+Three timing variables, from @sec-exposure:
+
+* **position**: `trial_order / session_trials`, 0–1 through the session (centered at .5)
+* **test number**: earlier tests of the same word in this session, as log(n + 1)
+* **trials since teaching**: trials since the word was last taught in this session, on a log
+  scale. Defined only where teaching is part of the imported session (`adams_marchman_2018`,
+  `fernald_marchman_2012`, `fernald_totlot`), not where it came from learning videos
+  (`reflook_*`, `yurovsky_2017`) or an earlier session.
+
+```{r}
+#| label: timing-data
+nn_model <- nn_model |>
+  mutate(position = trial_order / session_trials - .5,
+         log_test = log(test_session + 1),
+         log_since_teaching = log(trials_since_teaching))
+```
+
+Position and test number are nearly collinear within datasets, so they enter separate models.
+In `reflook_socword`, teaching is nearly collinear with both: learning trials and tests are
+interleaved in one fixed order.
+
+```{r}
+#| label: timing-cor
+cor_or_na <- function(x, y) {
+  ok <- complete.cases(x, y)
+  if (sum(ok) < 3 || sd(x[ok]) == 0 || sd(y[ok]) == 0) NA_real_ else cor(x[ok], y[ok])
+}
+
+nn_model |>
+  summarise(n_trials = n(),
+            prop_since_teaching_defined = mean(!is.na(log_since_teaching)),
+            r_teaching_position = cor_or_na(log_teaching, position),
+            r_teaching_test = cor_or_na(log_teaching, log_test),
+            r_position_test = cor_or_na(position, log_test),
+            r_teaching_since = cor_or_na(log_teaching, log_since_teaching),
+            .by = dataset_name)
+```
+
+### Descriptives
+
+```{r}
+#| label: fig-test-number
+#| fig-cap: "Accuracy by how many times the word had already been tested in the session, colored by teaching exposures, for datasets aged 12–36 months. Points are means across children; lines connect tests at the same teaching level."
+#| fig-height: 6
+nn_model |>
+  mutate(test_number = test_session + 1) |>
+  summarise(acc = mean(long_window_accuracy),
+            .by = c(dataset_name, teaching, test_number, subject_id)) |>
+  summarise(mean = mean(acc), n = n(), .by = c(dataset_name, teaching, test_number)) |>
+  filter(n >= 5) |>
+  ggplot(aes(x = test_number, y = mean, colour = factor(teaching))) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_line(aes(group = teaching)) +
+  geom_point(aes(size = n)) +
+  facet_wrap(~dataset_name) +
+  scale_colour_viridis_d(end = .9) +
+  scale_size_area(max_size = 4) +
+  labs(x = "Test of this word in the session (1 = first)", y = "Proportion target looking",
+       colour = "Teaching", size = "Children")
+```
+
+```{r}
+#| label: fig-position
+#| fig-cap: "Accuracy across the session (trial position in fifths), by dataset and age bin. Points are means across children (cells with fewer than 5 children are dropped)."
+#| fig-height: 6
+nn_model |>
+  mutate(position_bin = cut(position + .5, seq(0, 1, .2), include.lowest = TRUE,
+                            labels = c("0–.2", ".2–.4", ".4–.6", ".6–.8", ".8–1"))) |>
+  summarise(acc = mean(long_window_accuracy),
+            .by = c(dataset_name, age_bin, position_bin, subject_id)) |>
+  summarise(mean = mean(acc), n = n(), .by = c(dataset_name, age_bin, position_bin)) |>
+  filter(n >= 5) |>
+  ggplot(aes(x = position_bin, y = mean, colour = age_bin, group = age_bin)) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_line() +
+  geom_point(aes(size = n)) +
+  facet_wrap(~dataset_name) +
+  scale_colour_viridis_d(end = .9) +
+  scale_size_area(max_size = 4) +
+  labs(x = "Position in session", y = "Proportion target looking",
+       colour = "Age (months)", size = "Children") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#| label: fig-since-teaching
+#| fig-cap: "Accuracy by trials since the word was last taught in the session (log scale), colored by teaching exposures, for the datasets where this is defined. Points are means across children (cells with fewer than 5 children are dropped)."
+#| fig-height: 3.5
+nn_model |>
+  filter(!is.na(trials_since_teaching)) |>
+  summarise(acc = mean(long_window_accuracy),
+            .by = c(dataset_name, teaching, trials_since_teaching, subject_id)) |>
+  summarise(mean = mean(acc), n = n(), .by = c(dataset_name, teaching, trials_since_teaching)) |>
+  filter(n >= 5) |>
+  ggplot(aes(x = trials_since_teaching, y = mean, colour = factor(teaching))) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_line(aes(group = teaching)) +
+  geom_point(aes(size = n)) +
+  facet_wrap(~dataset_name) +
+  scale_x_log10(breaks = c(1, 2, 4, 8, 16)) +
+  scale_colour_viridis_d(end = .9) +
+  scale_size_area(max_size = 4) +
+  labs(x = "Trials since last teaching (log scale)", y = "Proportion target looking",
+       colour = "Teaching", size = "Children")
+```
+
+### Models
+
+Each model adds one timing control to the primary model. The recency model can only be fit on the
+subset where trials-since-teaching is defined, so the primary model is refit on that same subset
+for comparison.
+
+```{r}
+#| label: timing-models
+f_primary <- long_window_accuracy ~ log_teaching * log_age +
+  (1 | dataset_name) + (1 | subject_id) + (1 | target_label)
+
+nn_since <- nn_model |> filter(!is.na(log_since_teaching))
+
+timing_models <- list(
+  "primary" = m,
+  "+ position" = lmer(update(f_primary, . ~ . + position), data = nn_model),
+  "+ test number" = lmer(update(f_primary, . ~ . + log_test), data = nn_model),
+  "primary (recency subset)" = lmer(f_primary, data = nn_since),
+  "+ trials since teaching (recency subset)" =
+    lmer(update(f_primary, . ~ . + log_since_teaching), data = nn_since)
+)
+
+timing_coefs <- timing_models |>
+  map(\(x) tidy(x, effects = "fixed", conf.int = TRUE)) |>
+  list_rbind(names_to = "model") |>
+  mutate(model = fct_inorder(model),
+         n_trials = map_int(timing_models, nobs)[as.character(model)])
+
+timing_coefs |>
+  filter(term != "(Intercept)") |>
+  select(model, n_trials, term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+```{r}
+#| label: fig-timing-coefs
+#| fig-cap: "Teaching coefficients (±95% CI) with and without timing controls. The teaching slope is for a 24-month-old; the interaction is the change in that slope per unit of log age."
+#| fig-height: 3.5
+timing_coefs |>
+  filter(term %in% c("log_teaching", "log_teaching:log_age")) |>
+  mutate(term = recode(term, log_teaching = "log(teaching + 1)",
+                       `log_teaching:log_age` = "log(teaching + 1) × log(age / 24)")) |>
+  ggplot(aes(x = estimate, y = fct_rev(model))) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  facet_wrap(~term, scales = "free_x") +
+  labs(x = "Estimate", y = NULL)
+```
+
+```{r}
+#| label: fig-timing-pred
+#| fig-cap: "Model predictions for accuracy by teaching exposures at representative ages: primary model (dashed) and with position held at mid-session (solid), each over the range of exposures observed within 3 months of that age."
+pred_grid_timing <- pred_grid |> mutate(position = 0)
+
+bind_rows(
+  primary = pred_grid_timing |> mutate(pred = predict(m, newdata = pred_grid_timing, re.form = NA)),
+  `+ position` = pred_grid_timing |>
+    mutate(pred = predict(timing_models[["+ position"]], newdata = pred_grid_timing, re.form = NA)),
+  .id = "model") |>
+  ggplot(aes(x = teaching + 1, y = pred, colour = factor(age), linetype = model)) +
+  geom_hline(yintercept = .5, linetype = "dotted") +
+  geom_line(linewidth = .9) +
+  scale_x_log10(breaks = c(1, 2, 3, 5, 9, 17, 33), labels = \(x) x - 1) +
+  scale_colour_viridis_d(end = .9) +
+  scale_linetype_manual(values = c(primary = "dashed", `+ position` = "solid")) +
+  labs(x = "Teaching exposures (log scale)", y = "Predicted proportion target looking",
+       colour = "Age (months)", linetype = "Model")
 ```

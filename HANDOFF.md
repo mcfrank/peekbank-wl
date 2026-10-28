@@ -11,7 +11,8 @@ and `notebooks/_freeze/` are committed. Changes this session:
 * `needs_prior_session` column in `exposure_design.csv`: fernald_totlot `ylearn` and
   fernald_marchman_2012 `FerretRetention` get NA teaching when the teaching session is not in Peekbank
   (4 ylearn trials).
-* Sensitivity models (observed-only teaching; dataset as fixed effect) at the end of chapter 04.
+* Sensitivity models (observed-only teaching; dataset as fixed effect) and timing controls
+  (`session_trials`, `trials_since_teaching` from chapter 02) in chapter 04.
 * `render.sh` sets a UTF-8 locale if none is set.
 
 Mike has written to Heidi Baumgartner and Virginia Marchman about hit-list items 1–4.
@@ -131,9 +132,12 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
    still NA and drops out: 269 kept N–N trials, 12–13 mo, the only sub-18-month data outside the
    reflook/yurovsky tablets) and confirm the Fernald-lab protocols. Then delete `notebooks/_freeze/02-*`
    through `04-*` and re-render 02–04.
-3. Teaching is largely confounded with dataset, test position and recency (immediate tests at T=1
-   are right after one exposure; later tests come later in the session). Consider trial position or
-   test number as a covariate.
+3. ~~Timing controls~~ (done: chapter 04 "Timing controls", with position, test number, and
+   trials since teaching). With any one of them, the 24-month teaching slope goes from −0.03 to about 0.
+   Position and test number are collinear (r ≈ .95), and in reflook_socword teaching is collinear
+   with both, so the 12–18-month curve (mostly socword) cannot be separated from fatigue. Possible
+   next step: a joint model of teaching + recency on the in-session-teaching datasets with
+   by-dataset slopes, or dropping socword as a sensitivity check.
 4. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
 
 ## Source-paper coding status

@@ -349,6 +349,33 @@ exposures |>
             .by = dataset_name)
 ```
 
+## Timing
+
+Teaching is entangled with *when* a test happens: tests after one exposure tend to come right
+after it and early in the session, tests after more exposures come later. To control for this
+in @sec-exposure-age, we record:
+
+* `session_trials`: the last `trial_order` of the administration, for relative trial position
+* `trials_since_teaching`: trials since the word was last taught *in this session* (observed or
+  reconstructed teaching trials). NA when all of the word's teaching happened outside the
+  imported trials or in an earlier session.
+
+```{r}
+#| label: timing
+session_length <- trials |>
+  summarise(session_trials = max(trial_order), .by = administration_id)
+
+since_teaching <- targets |>
+  select(trial_id, dataset_name, subject_id, session, trial_order, word) |>
+  inner_join(events |>
+               filter(exposure_type == "teaching") |>
+               select(dataset_name, subject_id, session, word, ev_order = trial_order),
+             by = c("dataset_name", "subject_id", "session", "word"),
+             relationship = "many-to-many") |>
+  filter(ev_order < trial_order) |>
+  summarise(trials_since_teaching = min(trial_order - ev_order), .by = trial_id)
+```
+
 ## Result
 
 Teaching counts on N–N test trials by dataset:
@@ -360,7 +387,9 @@ trial_exposures <- trials |>
   select(trial_id, administration_id, subject_id, dataset_name, age, trial_order,
          condition, role, confidence, excluded, full_phrase_language,
          target_label, distractor_label, distractor_novelty) |>
-  left_join(exposures |> select(-word, -distractor_word), by = "trial_id")
+  left_join(exposures |> select(-word, -distractor_word), by = "trial_id") |>
+  left_join(session_length, by = "administration_id") |>
+  left_join(since_teaching, by = "trial_id")
 
 trial_exposures |>
   filter(role == "test_nn") |>
