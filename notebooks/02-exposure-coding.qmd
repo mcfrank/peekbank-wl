@@ -144,9 +144,10 @@ trials |>
 ## Counting prior exposures
 
 For each trial with a novel target word, we count exposures to that word on trials that came
-earlier in the same administration (by `trial_order`). We also count exposures from the same
-child's *earlier* administrations in the same dataset, kept separate because some datasets test
-children twice about a week apart, and others 6 months apart.
+earlier in the same administration (by `trial_order`), and on all of the same child's *earlier*
+administrations in the same dataset. Both count toward `teaching`. The split is kept
+(`*_session` vs `*_prev`), because the gap between sessions ranges from about a week to 6 months
+across datasets.
 
 ```{r}
 #| label: count
@@ -231,10 +232,10 @@ exposures <- exposures |>
   mutate(
     has_external = trial_id %in% ext_match$trial_id,
     teaching_external = if_else(has_external, teaching_external, 0),
-    # teaching = in-session + external; NA when the external count is not yet coded
-    teaching = teaching_session + teaching_external,
-    teaching_cumulative = teaching + teaching_prev,
-    total_exposures = teaching + me_session + test_session)
+    # teaching = this session + earlier sessions of the same child + external (outside the
+    # imported trials); NA when the external count is not yet coded
+    teaching = teaching_session + teaching_prev + teaching_external,
+    total_exposures = teaching + me_session + me_prev + test_session + test_prev)
 ```
 
 ## Result

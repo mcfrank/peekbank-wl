@@ -17,7 +17,7 @@ this book pulls those trials out and recodes them with the exposure history of e
 
 | Term | Definition |
 |---|---|
-| **Teaching exposure** | A labeling of a novel word in which the referent is disambiguated *before* testing (ostensive naming, verb-supported naming, habituation, the novel object named under a familiar one). This is the main predictor. |
+| **Teaching exposure** | A labeling of a novel word in which the referent is disambiguated *before* testing (ostensive naming, verb-supported naming, habituation, the novel object named under a familiar one). Includes teaching in the same child's earlier sessions. This is the main predictor. |
 | **ME exposure** | A mutual-exclusivity / referent-selection trial: novel word heard with a novel object and a familiar object (or a previously taught object). Counted separately; not teaching. |
 | **Test exposure** | An earlier test trial on which the word was heard. Counted separately. |
 | **Total exposures** | Teaching + ME + earlier test labelings. |
