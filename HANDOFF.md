@@ -26,6 +26,14 @@ columns in `exposure_design.csv`), because Peekbank's phrases for those trials a
 fernald_marchman_2012 `Novel-Test` now has `needs_prior_session` (3 trials without visit A become NA).
 fernald_totlot is still unresolved (see the notes file); its kreeb/nonce rows are set to low confidence.
 
+**2026-11-05: Baumgartner (2014) dissertation** (provided by Mike; not committed). baumgartner_2014
+teaching is now coded in `external_teaching.csv`. Each 14-s habituation trial shows one object with
+7 label repetitions, and the two pairs alternate. Habituation ends at ≤50% of first-block looking
+(min 8, max 24 trials). Per-infant counts are not in Peekbank, so each experiment gets its expected
+count: Labels = Expt 1, 10.2 per word; Speakers = Expt 2, 10.9; Colors = Expt 3, 10.8 (range 4–12).
+Peekbank has more infants per condition (37/34/29) than the dissertation's final samples (34/27/24).
+All 269 trials (12–13 mo) are at chance.
+
 ## Goal
 
 Estimate word-recognition accuracy (proportion target looking) as a function of (log) number of
@@ -137,9 +145,7 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
 ## Next steps
 
 1. ~~Render 01–04 with real data; sanity-check the coding~~ (done in session 2).
-2. When Baumgartner replies: fill `metadata/external_teaching.csv` (baumgartner_2014 is still NA and
-   drops out: 269 kept N–N trials, 12–13 mo, the only sub-18-month data outside the reflook/yurovsky
-   tablets). Ask Marchman specifically about the 18-month `zteach` trials in fernald_totlot (FPM 2006):
+2. ~~baumgartner_2014 teaching~~ (done from the dissertation). Ask Marchman specifically about the 18-month `zteach` trials in fernald_totlot (FPM 2006):
    are they kreeb/nonce teaching before `alearn`/`learn`, and does the 21-month `ylearn` rely on them?
    Then delete `notebooks/_freeze/02-*` through `04-*` and re-render 02–04.
 3. ~~Timing controls~~ (done: chapter 04 "Timing controls", with position, test number, and
@@ -164,7 +170,7 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
 
 **Hit list: still needed (Mike is chasing these):**
 
-1. Baumgartner, H. A. (2014). *Understanding the Role of Non-Contrastive Variability in Word
+1. ~~Resolved 2026-11-05 from the dissertation PDF.~~ Baumgartner, H. A. (2014). *Understanding the Role of Non-Contrastive Variability in Word
    Learning and Visual Attention in Infancy* [Doctoral dissertation, UC Davis]. ProQuest 3685177.
    Need: labelings per habituation trial, and the habituation criterion and min/max number of
    habituation trials (ideally per-infant counts). Until then this dataset has NA teaching.
