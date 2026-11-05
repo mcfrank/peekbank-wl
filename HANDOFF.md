@@ -17,6 +17,15 @@ and `notebooks/_freeze/` are committed. Changes this session:
 
 Mike has written to Heidi Baumgartner and Virginia Marchman about hit-list items 1–4.
 
+**2026-11-05: TL2 design from Virginia Marchman** (summary in `notes/TL2-design.md`; the spreadsheet
+itself is not committed). It confirms the Ferret and deebo coding for fernald_marchman_2012 and the
+modi/panju coding for adams_marchman_2018 (confidence raised to high). adams_marchman_2018 `noveltest`
+is the deebo task and is now in the main analysis (~390 trials, 20–27 mo). Its teaching is
+*design-expected*: each medial trial counts 0.5 labelings (new `exposed_word` and `labelings_per_trial`
+columns in `exposure_design.csv`), because Peekbank's phrases for those trials are generic questions.
+fernald_marchman_2012 `Novel-Test` now has `needs_prior_session` (3 trials without visit A become NA).
+fernald_totlot is still unresolved (see the notes file); its kreeb/nonce rows are set to low confidence.
+
 ## Goal
 
 Estimate word-recognition accuracy (proportion target looking) as a function of (log) number of
@@ -128,10 +137,11 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
 ## Next steps
 
 1. ~~Render 01–04 with real data; sanity-check the coding~~ (done in session 2).
-2. When Baumgartner / Marchman reply: fill `metadata/external_teaching.csv` (baumgartner_2014 is
-   still NA and drops out: 269 kept N–N trials, 12–13 mo, the only sub-18-month data outside the
-   reflook/yurovsky tablets) and confirm the Fernald-lab protocols. Then delete `notebooks/_freeze/02-*`
-   through `04-*` and re-render 02–04.
+2. When Baumgartner replies: fill `metadata/external_teaching.csv` (baumgartner_2014 is still NA and
+   drops out: 269 kept N–N trials, 12–13 mo, the only sub-18-month data outside the reflook/yurovsky
+   tablets). Ask Marchman specifically about the 18-month `zteach` trials in fernald_totlot (FPM 2006):
+   are they kreeb/nonce teaching before `alearn`/`learn`, and does the 21-month `ylearn` rely on them?
+   Then delete `notebooks/_freeze/02-*` through `04-*` and re-render 02–04.
 3. ~~Timing controls~~ (done: chapter 04 "Timing controls", with position, test number, and
    trials since teaching). With any one of them, the 24-month teaching slope goes from −0.03 to about 0.
    Position and test number are collinear (r ≈ .95), and in reflook_socword teaching is collinear

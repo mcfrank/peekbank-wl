@@ -76,14 +76,15 @@ Child-level means within each age bin × exposure cell, averaged across children
 
 ```{r}
 #| label: fig-curves
-#| fig-cap: "Accuracy on N–N test trials by number of prior teaching exposures, by age bin. Points are means across children (±95% CI); point size is the number of children. The dashed line is chance."
+#| fig-cap: "Accuracy on N–N test trials by number of prior teaching exposures, by age bin. Points are means across children (±95% CI); point size is the number of children; cells with fewer than 5 children are dropped. The dashed line is chance."
 by_child <- nn |>
   summarise(acc = mean(long_window_accuracy), .by = c(age_bin, teaching, subject_id))
 
 curves <- by_child |>
   summarise(mean = mean(acc), n = n(),
             ci = 1.96 * sd(acc) / sqrt(n),
-            .by = c(age_bin, teaching))
+            .by = c(age_bin, teaching)) |>
+  filter(n >= 5)
 
 curves |>
   ggplot(aes(x = teaching + 1, y = mean, colour = age_bin)) +
@@ -101,11 +102,12 @@ curves |>
 
 ```{r}
 #| label: fig-curves-dataset
-#| fig-cap: "The same curves by dataset."
+#| fig-cap: "The same curves by dataset (cells with fewer than 5 children dropped)."
 #| fig-height: 7
 nn |>
   summarise(acc = mean(long_window_accuracy), .by = c(dataset_name, age_bin, teaching, subject_id)) |>
   summarise(mean = mean(acc), n = n(), .by = c(dataset_name, age_bin, teaching)) |>
+  filter(n >= 5) |>
   ggplot(aes(x = teaching + 1, y = mean, colour = age_bin)) +
   geom_hline(yintercept = .5, linetype = "dashed") +
   geom_point(aes(size = n)) +

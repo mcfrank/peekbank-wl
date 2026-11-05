@@ -77,7 +77,8 @@ design_any <- design |> filter(condition == "*") |> select(-condition)
 
 trials <- trials |>
   left_join(design_exact |> select(dataset_name, condition, target_novelty, role, confidence,
-                                   needs_prior_session),
+                                   needs_prior_session, design_word = exposed_word,
+                                   labelings_per_trial),
             by = c("dataset_name", "condition", "target_novelty")) |>
   left_join(design_any |> select(dataset_name, target_novelty, role_any = role,
                                  confidence_any = confidence),
@@ -86,7 +87,8 @@ trials <- trials |>
                          if_else(target_novelty == "familiar" & distractor_novelty == "familiar",
                                  "familiar", "uncoded")),
          confidence = coalesce(confidence, confidence_any),
-         needs_prior_session = coalesce(needs_prior_session, FALSE)) |>
+         needs_prior_session = coalesce(needs_prior_session, FALSE),
+         labelings_per_trial = coalesce(labelings_per_trial, 1)) |>
   select(-role_any, -confidence_any)
 
 trials |> count(dataset_name, role) |>
@@ -105,6 +107,13 @@ trials in `fernald_marchman_2012` have a *familiar* target, and the novel word a
 the phrase ("Do you see the dog on the walem?", "There's a baby on the deebo"). For those trials
 we find the dataset's novel words in `full_phrase`. We count tokens (repetitions within the
 phrase) where a phrase exists.
+
+`adams_marchman_2018` uses the same deebo task, but its stored phrases for the medial trials are
+generic per-word questions ("Where's the baby? Can you see it?"), not the medial sentences. For it,
+`exposure_design.csv` names the word (`exposed_word`, which overrides phrase parsing) and the expected
+labelings per medial trial (`labelings_per_trial` = 0.5, since half of the TL2 medial trials say
+"on the deebo"; see `notes/TL2-design.md`). Its deebo teaching counts are therefore design-expected,
+not observed.
 
 ```{r}
 #| label: exposed-word
@@ -126,7 +135,8 @@ trials <- trials |>
   select(-words) |>
   mutate(
     exposed_word = case_when(
-      role %in% c("teaching", "teaching_incidental") & target_novelty == "familiar" ~ phrase_word,
+      role %in% c("teaching", "teaching_incidental") & target_novelty == "familiar" ~
+        coalesce(design_word, phrase_word),
       target_novelty == "novel" ~ target_label,
       TRUE ~ NA_character_),
     # a medial trial that says "over there" does not label the novel object
@@ -168,7 +178,7 @@ slots <- trials |>
   transmute(dataset_name, administration_id, trial_order,
             key = paste(condition, target_label, distractor_label,
                         coalesce(str_squish(full_phrase), ""), sep = "|"),
-            exposure_type, exposed_word, tokens)
+            exposure_type, exposed_word, tokens, labelings_per_trial)
 
 gaps <- slots |>
   summarise(hi = max(trial_order), .by = c(dataset_name, administration_id)) |>
@@ -196,7 +206,7 @@ reconstructed <- gaps |>
              relationship = "many-to-many") |>
   inner_join(slots |> rename(b = administration_id), by = c("dataset_name", "b", "trial_order")) |>
   summarise(n_donors = n_distinct(b), n_keys = n_distinct(key),
-            across(c(key, exposure_type, exposed_word, tokens), first),
+            across(c(key, exposure_type, exposed_word, tokens, labelings_per_trial), first),
             .by = c(dataset_name, a, trial_order)) |>
   rename(administration_id = a)
 
@@ -231,12 +241,13 @@ admin_info <- trials |> distinct(administration_id, subject_id, age)
 events <- trials |>
   filter(!is.na(exposure_type), !is.na(exposed_word)) |>
   select(dataset_name, subject_id, administration_id, age, trial_order,
-         word = exposed_word, exposure_type, tokens) |>
+         word = exposed_word, exposure_type, tokens, weight = labelings_per_trial) |>
   mutate(reconstructed = FALSE) |>
   bind_rows(reconstructed |>
               left_join(admin_info, by = "administration_id") |>
               select(dataset_name, subject_id, administration_id, age, trial_order,
-                     word = exposed_word, exposure_type, tokens) |>
+                     word = exposed_word, exposure_type, tokens,
+                     weight = labelings_per_trial) |>
               mutate(reconstructed = TRUE))
 
 # order administrations within child
@@ -264,7 +275,7 @@ count_prior <- function(targets, events, word_col) {
                             ev_session < session ~ "prev",
                             TRUE ~ NA_character_)) |>
     filter(!is.na(when)) |>
-    count(trial_id, exposure_type, when) |>
+    count(trial_id, exposure_type, when, wt = weight) |>
     pivot_wider(names_from = c(exposure_type, when), values_from = n,
                 names_glue = "{exposure_type}_{when}")
 }

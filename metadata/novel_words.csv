@@ -1,2 +1,3 @@
 dataset_name,original_label,word,notes
 fernald_marchman_2012,novel,deebo,"Novel-Test target is labeled 'novel' in Peekbank; the phrase is 'Where's the deebo?'"
+adams_marchman_2018,novel,deebo,"noveltest target is labeled 'novel' in Peekbank; it is the TL2 deebo task ('Where's the deebo?')"
