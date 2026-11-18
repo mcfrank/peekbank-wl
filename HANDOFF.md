@@ -40,7 +40,14 @@ All 269 trials (12–13 mo) are at chance.
   teaching × age (plus a variant with session position). It plots model predictions: the teaching
   slope as a function of age, population curves by age, and dataset-specific curves. Fits are
   cached in `cache/05_brms_*.rds`. Install with `install.packages(c("brms", "rstan", "posterior"))`
-  (binaries from p3m).
+  (binaries from p3m). Each fit takes about 20 minutes on 4 cores (adapt_delta .99; 0 divergences,
+  max R-hat 1.004).
+  Result: the teaching × age interaction is 0.029 [−0.099, 0.148] with P(>0) = .69, compared
+  with lmer's within-dataset 0.111 (p = .047). Once each dataset gets its own slopes, the
+  interaction is no longer distinguishable from zero. The population teaching slope is slightly
+  negative at every age: −0.036 at 15 months, −0.011 at 33 months, with all 95% CrIs including 0.
+  Adding session position moves the slope to about 0 but leaves the interaction unchanged.
+  adams_marchman_2018 is the only dataset whose own slope is positive (0.031 [−0.005, 0.071]).
 * Chapter 04's descriptive curves no longer connect points.
 * Chapter 06 analyzes HiLo3, an unpublished Fernald/Marchman study that varies the number of
   teaching exposures (3/6/9) within one study at about 30 months. Virginia Marchman shared it with
