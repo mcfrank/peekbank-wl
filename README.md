@@ -14,6 +14,8 @@ notebooks/               Quarto book (R / knitr)
   02-exposure-coding.qmd trial roles and prior-exposure counts
   03-trials.qmd          trial-level accuracy and exclusions -> data/derived/novel_trials.csv
   04-exposure-by-age.qmd accuracy by exposures across age, lmer
+  05-dataset-slopes.qmd  brms model with dataset-specific teaching/age/interaction slopes
+  06-hilo3.qmd           supplementary unpublished dataset; renders only with local files (outputs gitignored)
 metadata/                hand-coded inputs (edit these, not the notebooks)
   exposure_design.csv    role of each dataset x condition (teaching, test_nn, test_me, ...)
   external_teaching.csv  teaching that happened outside the imported trials (from source papers)
@@ -26,7 +28,7 @@ data/derived/            small derived trial-level file (committed)
 
 Requirements:
 
-* R with tidyverse, here, lme4, lmerTest, broom.mixed
+* R with tidyverse, here, lme4, lmerTest, broom.mixed, brms (with rstan), posterior
 * `peekbankr` (`remotes::install_github("peekbank/peekbankr")`)
 * Quarto
 * `REDIVIS_API_TOKEN` with the `data.metadata` scope, needed for chapter 1 only
@@ -37,6 +39,7 @@ cd notebooks
 ./render.sh 02-exposure-coding.qmd
 ./render.sh 03-trials.qmd
 ./render.sh 04-exposure-by-age.qmd
+./render.sh 05-dataset-slopes.qmd     # fits brms models (several minutes; cached in cache/)
 ```
 
 `freeze: auto` caches chapter outputs by *source*. When hand-coded metadata changes, delete

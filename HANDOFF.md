@@ -34,6 +34,20 @@ count: Labels = Expt 1, 10.2 per word; Speakers = Expt 2, 10.9; Colors = Expt 3,
 Peekbank has more infants per condition (37/34/29) than the dissertation's final samples (34/27/24).
 All 269 trials (12–13 mo) are at chance.
 
+**2026-11-18: dataset-slopes model and a supplementary dataset.**
+
+* Chapter 05 fits a brms model with dataset-specific random slopes for teaching, age, and
+  teaching × age (plus a variant with session position). It plots model predictions: the teaching
+  slope as a function of age, population curves by age, and dataset-specific curves. Fits are
+  cached in `cache/05_brms_*.rds`. Install with `install.packages(c("brms", "rstan", "posterior"))`
+  (binaries from p3m).
+* Chapter 04's descriptive curves no longer connect points.
+* Chapter 06 analyzes HiLo3, an unpublished Fernald/Marchman study that varies the number of
+  teaching exposures (3/6/9) within one study at about 30 months. Virginia Marchman shared it with
+  Mike; it is not in Peekbank. **The repo is public**, so the raw files, design notes
+  (`cache/hilo3/HiLo3-design-notes.md`), derived data and chapter 06's freeze are all gitignored.
+  Do not commit any of them until the lab agrees to share. A Peekbank import is on hold.
+
 ## Goal
 
 Estimate word-recognition accuracy (proportion target looking) as a function of (log) number of
@@ -154,7 +168,9 @@ Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
    with both, so the 12–18-month curve (mostly socword) cannot be separated from fatigue. Possible
    next step: a joint model of teaching + recency on the in-session-teaching datasets with
    by-dataset slopes, or dropping socword as a sensitivity check.
-4. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
+4. Ask Virginia about HiLo3 sharing permission, the 9-exposure group's orders, the meanings of the
+   `.`/`-` gaze codes, and the high rate of prescreened TestB trials (questions in the local notes file).
+5. Later: the N–F / ME analysis (`test_me`, `test_nf`), and total-exposures vs teaching-only models.
 
 ## Source-paper coding status
 

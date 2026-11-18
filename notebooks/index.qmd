@@ -44,6 +44,8 @@ Following Frank et al. (2025), with the exceptions noted:
 | @sec-exposure | Code each trial's role and count prior exposures of each word |
 | @sec-trials | Trial-level accuracy, exclusions, final analysis dataset |
 | @sec-exposure-age | Accuracy by exposures across age |
+| @sec-slopes | Bayesian model with dataset-specific teaching, age and interaction slopes |
+| @sec-hilo3 | HiLo3, an unpublished study varying exposures (3/6/9) within one study (supplementary; renders only with local data) |
 
 ## Hand-coded inputs
 

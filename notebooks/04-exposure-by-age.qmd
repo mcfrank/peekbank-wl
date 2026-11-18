@@ -76,7 +76,7 @@ Child-level means within each age bin × exposure cell, averaged across children
 
 ```{r}
 #| label: fig-curves
-#| fig-cap: "Accuracy on N–N test trials by number of prior teaching exposures, by age bin. Points are means across children (±95% CI); point size is the number of children; cells with fewer than 5 children are dropped. The dashed line is chance."
+#| fig-cap: "Accuracy on N–N test trials by number of prior teaching exposures, by age bin. Points are means across children (±95% CI); point size is the number of children; cells with fewer than 5 children are dropped. The dashed line is chance. Model-based curves are in @sec-slopes."
 by_child <- nn |>
   summarise(acc = mean(long_window_accuracy), .by = c(age_bin, teaching, subject_id))
 
@@ -92,7 +92,6 @@ curves |>
   geom_linerange(aes(ymin = mean - ci, ymax = mean + ci),
                  position = position_dodge(width = .05), alpha = .5) +
   geom_point(aes(size = n), position = position_dodge(width = .05)) +
-  geom_line(position = position_dodge(width = .05)) +
   scale_x_log10(breaks = c(1, 2, 3, 5, 9, 17, 33), labels = \(x) x - 1) +
   scale_colour_viridis_d(end = .9) +
   labs(x = "Teaching exposures before test (log scale)",
@@ -111,7 +110,6 @@ nn |>
   ggplot(aes(x = teaching + 1, y = mean, colour = age_bin)) +
   geom_hline(yintercept = .5, linetype = "dashed") +
   geom_point(aes(size = n)) +
-  geom_line() +
   facet_wrap(~dataset_name) +
   scale_x_log10(breaks = c(1, 2, 3, 5, 9, 17, 33), labels = \(x) x - 1) +
   scale_colour_viridis_d(end = .9) +

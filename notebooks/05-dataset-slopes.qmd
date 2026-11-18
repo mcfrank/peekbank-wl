@@ -1,0 +1,215 @@
+# Dataset-specific slopes {#sec-slopes}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+i_am("notebooks/05-dataset-slopes.qmd")  # _quarto.yml would otherwise make notebooks/ the root
+library(brms)
+library(posterior)
+
+theme_set(theme_classic(base_size = 12))
+options(mc.cores = 4)
+
+novel_trials <- read_csv(here("data", "derived", "novel_trials.csv"), show_col_types = FALSE)
+```
+
+Teaching varies mostly *between* datasets, and datasets differ in many other ways (procedure,
+stimuli, age, lab), so the pooled teaching slope in @sec-exposure-age mixes within- and
+between-dataset differences. Here each dataset gets its own teaching slope, age slope and
+teaching × age interaction, partially pooled toward the population values. Datasets with no
+within-dataset variation in teaching say nothing about their own teaching slope; their estimates
+shrink to the population value.
+
+## The model
+
+$$
+\begin{aligned}
+\text{acc}_{ij} &= (\beta_0 + u_{0d}) + (\beta_1 + u_{1d}) \log(T_{ij} + 1) + (\beta_2 + u_{2d}) \log(\text{age}_i / 24) \\
+  &\quad + (\beta_3 + u_{3d}) \log(T_{ij} + 1) \log(\text{age}_i / 24) + v_{\text{child}} + w_{\text{word}} + \epsilon_{ij}
+\end{aligned}
+$$
+
+The four dataset terms $(u_{0d}, u_{1d}, u_{2d}, u_{3d})$ are correlated (LKJ(2) prior). Other priors
+are weakly informative on the accuracy scale:
+
+* fixed effects: Normal(0, 0.2)
+* intercept: Normal(0.6, 0.2)
+* standard deviations: Exponential(10), mean 0.1
+* residual: Exponential(5)
+
+The data are the same as the primary model in @sec-exposure-age: N–N tests, 12–36 months, coded
+teaching. Fits are cached in the gitignored `cache/`.
+
+```{r}
+#| label: data
+nn <- novel_trials |>
+  filter(role == "test_nn", age >= 12, age <= 36, !is.na(teaching)) |>
+  mutate(log_teaching = log(teaching + 1),
+         log_age = log(age / 24),
+         position = trial_order / session_trials - .5,
+         subject_id = as.character(subject_id))
+
+nn |>
+  summarise(n_trials = n(), n_children = n_distinct(subject_id),
+            teaching_levels = n_distinct(teaching),
+            age_range = paste(round(range(age)), collapse = "–"),
+            .by = dataset_name)
+```
+
+```{r}
+#| label: fit
+priors <- c(prior(normal(0.6, 0.2), class = Intercept),
+            prior(normal(0, 0.2), class = b),
+            prior(exponential(10), class = sd),
+            prior(lkj(2), class = cor),
+            prior(exponential(5), class = sigma))
+
+m_slopes <- brm(long_window_accuracy ~ log_teaching * log_age +
+                  (1 + log_teaching * log_age | dataset_name) +
+                  (1 | subject_id) + (1 | target_label),
+                data = nn, prior = priors, chains = 4, iter = 3000, warmup = 1000,
+                control = list(adapt_delta = .95), seed = 2026,
+                file = here("cache", "05_brms_slopes"), file_refit = "on_change")
+
+m_slopes_position <- update(m_slopes, formula. = ~ . + position, newdata = nn, seed = 2026,
+                            file = here("cache", "05_brms_slopes_position"),
+                            file_refit = "on_change")
+
+fixef_table <- function(fit) as_tibble(fixef(fit), rownames = "term")
+
+bind_rows(slopes = fixef_table(m_slopes),
+          slopes_plus_position = fixef_table(m_slopes_position), .id = "model") |>
+  filter(term != "Intercept")
+```
+
+```{r}
+#| label: diagnostics
+summarise_draws(m_slopes, "rhat", "ess_bulk") |>
+  summarise(max_rhat = max(rhat, na.rm = TRUE), min_ess_bulk = min(ess_bulk, na.rm = TRUE))
+nuts_params(m_slopes) |> filter(Parameter == "divergent__") |> summarise(divergences = sum(Value))
+```
+
+## The teaching effect across age
+
+The slope of accuracy on log(teaching + 1) at a given age is
+$\beta_1 + \beta_3 \log(\text{age}/24)$: the change in accuracy per unit of log exposures, or
+about 0.69 times that per doubling.
+
+```{r}
+#| label: fig-slope-by-age
+#| fig-cap: "Teaching slope (change in accuracy per unit log(teaching + 1)) as a function of age: population estimate (line) with 50% and 95% credible bands, from the dataset-slopes model. Points are each dataset's own slope at its median age (95% CrI); filled points are datasets that vary teaching within the dataset, open points are shrunk to the population value."
+draws <- as_draws_df(m_slopes)
+
+slope_by_age <- tibble(age = seq(12, 36, by = .5)) |>
+  mutate(slope = map(age, \(a) draws$b_log_teaching + draws$`b_log_teaching:log_age` * log(a / 24))) |>
+  mutate(est = map_dbl(slope, median),
+         lo95 = map_dbl(slope, quantile, .025), hi95 = map_dbl(slope, quantile, .975),
+         lo50 = map_dbl(slope, quantile, .25), hi50 = map_dbl(slope, quantile, .75))
+
+dataset_info <- nn |>
+  summarise(age = median(age), varies = n_distinct(teaching) > 1, .by = dataset_name)
+
+dataset_slopes <- dataset_info |>
+  mutate(slope = map2(dataset_name, age, \(d, a) {
+    r1 <- draws[[paste0("r_dataset_name[", d, ",log_teaching]")]]
+    r3 <- draws[[paste0("r_dataset_name[", d, ",log_teaching:log_age]")]]
+    (draws$b_log_teaching + r1) + (draws$`b_log_teaching:log_age` + r3) * log(a / 24)
+  }),
+  est = map_dbl(slope, median),
+  lo = map_dbl(slope, quantile, .025), hi = map_dbl(slope, quantile, .975)) |>
+  select(-slope)
+
+ggplot(slope_by_age, aes(x = age)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_ribbon(aes(ymin = lo95, ymax = hi95), alpha = .15) +
+  geom_ribbon(aes(ymin = lo50, ymax = hi50), alpha = .25) +
+  geom_line(aes(y = est), linewidth = 1) +
+  geom_pointrange(data = dataset_slopes, aes(y = est, ymin = lo, ymax = hi, shape = varies),
+                  position = position_jitter(width = .4, height = 0, seed = 1)) +
+  geom_text(data = dataset_slopes, aes(y = hi, label = dataset_name), size = 2.6, vjust = -.6,
+            position = position_jitter(width = .4, height = 0, seed = 1)) +
+  scale_shape_manual(values = c(`TRUE` = 16, `FALSE` = 1),
+                     labels = c(`TRUE` = "varies teaching", `FALSE` = "one teaching level")) +
+  labs(x = "Age (months)", y = "Teaching slope", shape = "Dataset")
+```
+
+```{r}
+#| label: slope-table
+dataset_slopes |> arrange(age)
+```
+
+## Predicted accuracy
+
+Population-level predictions (dataset, child and word effects set to zero) at representative
+ages, each over the teaching range observed within 3 months of that age. Points are child means in
+the matching age bins, with no lines between them.
+
+```{r}
+#| label: fig-pred-age
+#| fig-cap: "Predicted accuracy by teaching exposures at four ages (lines, 95% credible bands) from the dataset-slopes model, with observed child means (points; size = number of children) in the age bins centred on those ages. Dashed line is chance."
+ages <- tibble(age = c(15, 21, 27, 33), age_bin = c("12–18", "18–24", "24–30", "30–36"))
+
+grid <- ages |>
+  mutate(teaching = map(age, \(a) {
+    obs <- nn$teaching[abs(nn$age - a) <= 3]
+    seq(min(obs), max(obs), length.out = 40)
+  })) |>
+  unnest(teaching) |>
+  mutate(log_teaching = log(teaching + 1), log_age = log(age / 24))
+
+pred <- bind_cols(grid, as_tibble(fitted(m_slopes, newdata = grid, re_formula = NA)))
+
+points <- nn |>
+  mutate(age_bin = cut(age, c(12, 18, 24, 30, 36.01), right = FALSE,
+                       labels = ages$age_bin)) |>
+  summarise(acc = mean(long_window_accuracy), .by = c(age_bin, teaching, subject_id)) |>
+  summarise(mean = mean(acc), n = n(), .by = c(age_bin, teaching)) |>
+  filter(n >= 5)
+
+ggplot(pred, aes(x = teaching + 1, colour = age_bin, fill = age_bin)) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = Q2.5, ymax = Q97.5), alpha = .12, colour = NA) +
+  geom_line(aes(y = Estimate), linewidth = 1) +
+  geom_point(data = points, aes(y = mean, size = n), alpha = .6) +
+  scale_x_log10(breaks = c(1, 2, 3, 5, 9, 17), labels = \(x) x - 1) +
+  scale_colour_viridis_d(end = .9, aesthetics = c("colour", "fill")) +
+  scale_size_area(max_size = 5) +
+  labs(x = "Teaching exposures before test (log scale)", y = "Proportion target looking",
+       colour = "Age (months)", fill = "Age (months)", size = "Children")
+```
+
+Within each dataset: the dataset's own predicted curve (including its random effects) at its median
+age, over its observed teaching range, against its child means by teaching level.
+
+```{r}
+#| label: fig-pred-dataset
+#| fig-cap: "Dataset-specific predictions (line, 95% credible band) at each dataset's median age, with observed child means by teaching level (points, ±95% CI). Datasets with a single teaching level show only a point."
+#| fig-height: 6
+grid_ds <- nn |>
+  summarise(age = median(age), lo = min(teaching), hi = max(teaching), .by = dataset_name) |>
+  mutate(teaching = map2(lo, hi, \(l, h) seq(l, h, length.out = 30))) |>
+  unnest(teaching) |>
+  mutate(log_teaching = log(teaching + 1), log_age = log(age / 24))
+
+pred_ds <- bind_cols(grid_ds, as_tibble(fitted(m_slopes, newdata = grid_ds,
+                                               re_formula = ~ (1 + log_teaching * log_age | dataset_name))))
+
+points_ds <- nn |>
+  summarise(acc = mean(long_window_accuracy), .by = c(dataset_name, teaching, subject_id)) |>
+  summarise(mean = mean(acc), n = n(), ci = 1.96 * sd(acc) / sqrt(n),
+            .by = c(dataset_name, teaching)) |>
+  filter(n >= 5)
+
+ggplot(pred_ds, aes(x = teaching + 1)) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_ribbon(aes(ymin = Q2.5, ymax = Q97.5), alpha = .15) +
+  geom_line(aes(y = Estimate), linewidth = .9) +
+  geom_pointrange(data = points_ds, aes(y = mean, ymin = mean - ci, ymax = mean + ci),
+                  size = .3, colour = "grey30") +
+  facet_wrap(~dataset_name) +
+  scale_x_log10(breaks = c(1, 2, 3, 5, 9, 17), labels = \(x) x - 1) +
+  labs(x = "Teaching exposures before test (log scale)", y = "Proportion target looking")
+```

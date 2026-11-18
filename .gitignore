@@ -8,6 +8,9 @@ notebooks/*_files/
 cache/*
 !cache/README.md
 
+# Unpublished HiLo3 chapter: rendered output stays local until the lab agrees to share
+notebooks/_freeze/06-hilo3/
+
 # R
 .Rhistory
 .RData

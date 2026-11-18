@@ -1,0 +1,226 @@
+# HiLo3 (supplementary, unpublished) {#sec-hilo3}
+
+{{< include _caution.qmd >}}
+
+::: {.callout-caution}
+## Unpublished data: local only
+HiLo3 is an unpublished Fernald/Marchman lab study shared with us by Virginia Marchman. It is not
+in Peekbank. This chapter reads the raw iChart file from the gitignored `cache/hilo3/`, and its
+rendered output and derived data are gitignored too, so nothing from it is pushed until the lab
+agrees to share it. Without the raw files the chapter renders only this note.
+:::
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+i_am("notebooks/06-hilo3.qmd")  # _quarto.yml would otherwise make notebooks/ the root
+library(lme4)
+library(lmerTest)
+library(broom.mixed)
+
+theme_set(theme_classic(base_size = 12))
+
+RAW <- here("cache", "hilo3", "HiLo3AB30mn55cln.txt")
+HAVE_DATA <- file.exists(RAW)
+knitr::opts_chunk$set(eval = HAVE_DATA)
+```
+
+## Design
+
+Each child is taught two novel words (dofa, taju) at about 30 months, in one of three
+between-subjects groups: 3, 6 or 9 teaching trials per word at visit A. A teaching trial shows one
+novel object alone with one labeling sentence ("Here's a dofa."). Tests pair the two novel objects
+("Where's the taju?").
+
+| Phase | When | Teaching before it (3 / 6 / 9 groups) |
+|---|---|---|
+| TestA | visit A, after all teaching | 3 / 6 / 9 |
+| Retention | visit B (within a week), before any re-teaching | 3 / 6 / 9 |
+| TestB | visit B, after 1 refresh trial per word | 4 / 7 / 10 |
+
+An offline picture-pointing test (3 per word per visit, not in the gaze data) runs after the
+visit-A session and in the middle of visit B. Exposure counts below come from the teaching trials in
+the gaze file, using the same rules as @sec-exposure.
+
+## Trials
+
+The iChart file has one row per trial, with gaze coded every 33 ms and the word onset at frame 29.
+Codes: `1` = target, `0` = distractor; `.` and `-` = neither; blank = no frame recorded.
+
+```{r}
+#| label: read
+raw <- read_tsv(RAW, col_types = cols(.default = "c"), name_repair = "unique_quiet") |>
+  filter(!is.na(Sub.Num), Sub.Num != "")
+
+frame_cols <- names(raw)[26:174]
+stopifnot(names(raw)[54] == "F0", length(frame_cols) == 149)
+
+trials <- raw |>
+  transmute(row = row_number(),
+            subject_id = paste0("hilo3_", Sub.Num),
+            visit = Visit, age = as.numeric(Months), group = Group, order = Order,
+            order_num = str_extract(Order, "[12](?=-?[AB]$)"),
+            trial_order = as.integer(`Tr Num`), phase = Condition,
+            condition_orig = ConditionOrig, target_image = `Target Image`,
+            excluded = `PSO?` %in% "1") |>
+  mutate(
+    object = str_extract(target_image, "cubes|rings"),
+    # refresh trials are not labeled with the word in ConditionOrig; order 1 pairs dofa with
+    # the cubes, order 2 with the rings
+    word = coalesce(str_extract(condition_orig, "dofa|taju"),
+                    if_else((order_num == "1") == (object == "cubes"), "dofa", "taju")),
+    exposure_type = case_when(phase %in% c("Exposure", "Refresh") ~ "teaching",
+                              phase %in% c("TestA", "Retention", "TestB") ~ "test"),
+    session = if_else(visit == "A", 1L, 2L))
+
+trials |> count(group, visit, phase) |>
+  pivot_wider(names_from = phase, values_from = n, values_fill = 0)
+```
+
+## Exposure counts
+
+```{r}
+#| label: counts
+events <- trials |> filter(!is.na(exposure_type)) |>
+  select(subject_id, session, ev_order = trial_order, word, exposure_type)
+
+tests <- trials |> filter(exposure_type == "test")
+
+prior <- tests |>
+  select(row, subject_id, session, trial_order, word) |>
+  inner_join(events, by = c("subject_id", "word"), relationship = "many-to-many") |>
+  rename(ev_session = session.y, session = session.x) |>
+  mutate(when = case_when(ev_session == session & ev_order < trial_order ~ "session",
+                          ev_session < session ~ "prev")) |>
+  filter(!is.na(when)) |>
+  summarise(teaching_session = sum(exposure_type == "teaching" & when == "session"),
+            teaching_prev = sum(exposure_type == "teaching" & when == "prev"),
+            test_session = sum(exposure_type == "test" & when == "session"),
+            trials_since_teaching = suppressWarnings(min(
+              (trial_order - ev_order)[exposure_type == "teaching" & when == "session"])),
+            .by = row) |>
+  mutate(trials_since_teaching = if_else(is.finite(trials_since_teaching),
+                                         trials_since_teaching, NA_real_))
+
+session_length <- trials |>
+  summarise(session_trials = max(trial_order), .by = c(subject_id, session))
+
+tests <- tests |>
+  left_join(prior, by = "row") |>
+  mutate(across(c(teaching_session, teaching_prev, test_session), ~ replace_na(.x, 0L)),
+         teaching = teaching_session + teaching_prev) |>
+  left_join(session_length, by = c("subject_id", "session"))
+
+tests |> count(group, phase, teaching) |>
+  pivot_wider(names_from = phase, values_from = n, values_fill = 0)
+```
+
+## Accuracy
+
+As in @sec-trials: proportion of target looking 200–4000 ms after word onset among looks to target
+or distractor. Trials with less than 50% valid data, or prescreened out by the lab (`PSO?`, treated
+like Peekbank's `excluded`), are dropped. Blank frames (nothing recorded) do not count against a trial.
+
+```{r}
+#| label: accuracy
+acc <- raw |>
+  mutate(row = row_number()) |>
+  filter(row %in% tests$row) |>
+  select(row, all_of(frame_cols)) |>
+  pivot_longer(-row, names_to = "col", values_to = "code") |>
+  mutate(t = (row_number() - 29) * 1000 / 30, .by = row) |>
+  filter(t > 200, t <= 4000, !is.na(code)) |>
+  mutate(correct = case_when(code == "1" ~ 1, code == "0" ~ 0, TRUE ~ NA_real_)) |>
+  summarise(long_window_accuracy = mean(correct, na.rm = TRUE),
+            long_window_prop_data = mean(!is.na(correct)), .by = row)
+
+hilo3 <- tests |>
+  left_join(acc, by = "row") |>
+  mutate(long_window_accuracy = if_else(long_window_prop_data >= .5 & !is.nan(long_window_accuracy),
+                                        long_window_accuracy, NA))
+
+hilo3 |>
+  summarise(n_trials = n(), prescreened_out = sum(excluded),
+            under_50pct_data = sum(!excluded & is.na(long_window_accuracy)),
+            kept = sum(!excluded & !is.na(long_window_accuracy)), .by = phase)
+
+hilo3 <- hilo3 |>
+  filter(!excluded, !is.na(long_window_accuracy)) |>
+  mutate(phase = factor(phase, c("TestA", "Retention", "TestB")),
+         dataset_name = "hilo3", target_label = word)
+
+write_csv(hilo3, here("cache", "hilo3", "hilo3_trials.csv"))
+```
+
+```{r}
+#| label: fig-hilo3
+#| fig-cap: "HiLo3: accuracy by teaching exposures before the test, for each test phase. Points are means across children (±95% CI); dashed line is chance."
+#| fig-height: 3.5
+hilo3 |>
+  summarise(acc = mean(long_window_accuracy), .by = c(subject_id, group, phase, teaching)) |>
+  summarise(mean = mean(acc), n = n(), ci = 1.96 * sd(acc) / sqrt(n),
+            .by = c(phase, teaching)) |>
+  ggplot(aes(x = teaching, y = mean)) +
+  geom_hline(yintercept = .5, linetype = "dashed") +
+  geom_pointrange(aes(ymin = mean - ci, ymax = mean + ci)) +
+  facet_wrap(~phase, scales = "free_x") +
+  scale_x_continuous(breaks = c(3, 4, 6, 7, 9, 10)) +
+  labs(x = "Teaching exposures before test", y = "Proportion target looking")
+```
+
+The TestB drop is concentrated in the order-1 lists:
+
+```{r}
+#| label: order
+hilo3 |>
+  summarise(acc = mean(long_window_accuracy), .by = c(subject_id, order_num, phase)) |>
+  summarise(mean = mean(acc), n_children = n(), .by = c(phase, order_num)) |>
+  arrange(phase, order_num)
+```
+
+## Model
+
+Teaching varies between children (group) and, by one refresh trial, between phases. The age range
+is too narrow (28–31 months) for an age term.
+
+```{r}
+#| label: hilo3-model
+hilo3 <- hilo3 |> mutate(log_teaching = log(teaching + 1))
+
+m_hilo3 <- lmer(long_window_accuracy ~ log_teaching + phase + (1 | subject_id) + (1 | target_label),
+                data = hilo3)
+m_hilo3_testA <- lmer(long_window_accuracy ~ log_teaching + (1 | subject_id) + (1 | target_label),
+                      data = hilo3 |> filter(phase == "TestA"))
+
+bind_rows(all_phases = tidy(m_hilo3, effects = "fixed", conf.int = TRUE),
+          testA_only = tidy(m_hilo3_testA, effects = "fixed", conf.int = TRUE),
+          .id = "model") |>
+  select(model, term, estimate, std.error, conf.low, conf.high, p.value)
+```
+
+## Added to the Peekbank model
+
+HiLo3 as an eighth dataset in the dataset-slopes model of @sec-slopes (12–36 months, N–N tests).
+
+```{r}
+#| label: combined
+library(brms)
+
+nn_hilo3 <- read_csv(here("data", "derived", "novel_trials.csv"), show_col_types = FALSE) |>
+  filter(role == "test_nn", age >= 12, age <= 36, !is.na(teaching)) |>
+  mutate(subject_id = as.character(subject_id)) |>
+  bind_rows(hilo3 |> select(dataset_name, subject_id, target_label, age, teaching,
+                            long_window_accuracy)) |>
+  mutate(log_teaching = log(teaching + 1), log_age = log(age / 24))
+
+m_slopes <- readRDS(here("cache", "05_brms_slopes.rds"))
+m_slopes_hilo3 <- update(m_slopes, newdata = nn_hilo3, seed = 2026,
+                         file = here("cache", "hilo3", "06_brms_slopes_hilo3"),
+                         file_refit = "on_change")
+
+bind_rows(peekbank = as_tibble(fixef(m_slopes), rownames = "term"),
+          peekbank_plus_hilo3 = as_tibble(fixef(m_slopes_hilo3), rownames = "term"),
+          .id = "model") |>
+  filter(term != "Intercept")
+```

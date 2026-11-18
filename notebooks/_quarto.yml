@@ -13,6 +13,8 @@ book:
     - 02-exposure-coding.qmd
     - 03-trials.qmd
     - 04-exposure-by-age.qmd
+    - 05-dataset-slopes.qmd
+    - 06-hilo3.qmd
 
 format:
   html:
