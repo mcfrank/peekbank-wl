@@ -17,3 +17,6 @@ notebooks/_freeze/06-hilo3/
 .Rproj.user/
 .secrets
 .Renviron
+
+# Quarto intermediate files written during a render
+notebooks/*.rmarkdown
