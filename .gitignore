@@ -1,0 +1,17 @@
+# Quarto
+notebooks/_book/
+notebooks/.quarto/
+notebooks/*_files/
+notebooks/*.rmarkdown
+.quarto/
+
+# Large/regenerable data pulled from Peekbank (public, but big)
+cache/*
+!cache/README.md
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+.secrets
+.Renviron
