@@ -75,7 +75,7 @@ ggplot(by_ds, aes(x = estimate, y = reorder(dataset_name, estimate), colour = no
   geom_vline(xintercept = 0, lty = 2) +
   geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
   scale_colour_brewer(palette = "Dark2", name = "Non-vanilla trials") +
-  labs(x = "Accuracy after non-vanilla minus after vanilla", y = NULL)
+  labs(x = "Coefficient for preceding trial non-vanilla (vs vanilla)\non proportion target looking, adjusting for trial position and age", y = NULL)
 ```
 
 ## Models
