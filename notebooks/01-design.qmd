@@ -1,0 +1,158 @@
+# Design coding {#sec-design}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+i_am("notebooks/01-design.qmd")
+
+RELEASE <- "2026.1"
+CACHE <- here("cache", "01_peekbank_meta.rds")
+ELIFE <- here("cache", "peekbank-development")
+```
+
+## Inputs
+
+Two inputs:
+
+1. The trial-level analysis file from Frank et al. (2025), `cached_intermediates/1_d_trial.Rds`
+   in [peekbank/peekbank-development](https://github.com/peekbank/peekbank-development). It holds
+   **only vanilla trials** (familiar word, plain carrier phrase), English, age ≤ 60 months,
+   monolingual datasets, after the paper's item and data-quality filters. We use it unchanged.
+2. Peekbank's metadata tables for the same release, which list **every** trial each child saw,
+   including the non-vanilla ones that the paper dropped.
+
+```{r}
+#| label: pull
+if (!dir.exists(ELIFE)) {
+  system2("git", c("clone", "--depth", "1",
+                   "https://github.com/peekbank/peekbank-development", ELIFE))
+}
+
+if (!file.exists(CACHE)) {
+  library(peekbankr)
+  pb <- peekbank(RELEASE)
+  meta <- list(datasets = pb$datasets, administrations = pb$administrations,
+               trials = pb$trials, trial_types = pb$trial_types, stimuli = pb$stimuli)
+  # trials has no administration_id; the link is only in the timepoint tables
+  admin_trials <- pb$db$aoi_timepoints |> distinct(administration_id, trial_id) |> collect()
+  saveRDS(c(meta, list(admin_trials = admin_trials, release = RELEASE)), CACHE)
+}
+m <- readRDS(CACHE)
+stopifnot(m$release == RELEASE)
+
+d_trial <- readRDS(file.path(ELIFE, "cached_intermediates", "1_d_trial.Rds")) |> ungroup()
+d_sub <- readRDS(file.path(ELIFE, "cached_intermediates", "1_d_sub.Rds")) |> ungroup()
+```
+
+The paper's file has `r nrow(d_trial)` vanilla trials from `r n_distinct(d_trial$administration_id)`
+sessions in `r n_distinct(d_trial$dataset_name)` datasets.
+
+## Every trial in each session
+
+```{r}
+#| label: all-trials
+all_trials <- m$admin_trials |>
+  left_join(m$trials |> select(trial_id, trial_order, trial_type_id), by = "trial_id") |>
+  left_join(m$trial_types |> select(trial_type_id, dataset_name, condition, vanilla_trial),
+            by = "trial_type_id") |>
+  filter(dataset_name %in% unique(d_trial$dataset_name))
+
+session_design <- all_trials |>
+  group_by(dataset_name, administration_id) |>
+  summarise(n_trials_session = n(),
+            n_nonvanilla_session = sum(!vanilla_trial),
+            prop_nonvanilla_session = mean(!vanilla_trial),
+            .groups = "drop") |>
+  mutate(session_design = if_else(n_nonvanilla_session == 0, "vanilla only", "mixed")) |>
+  group_by(dataset_name) |>
+  mutate(dataset_design = if_else(all(n_nonvanilla_session == 0), "vanilla only", "mixed")) |>
+  ungroup() |>
+  left_join(read_csv(here("metadata", "nonvanilla_types.csv"), show_col_types = FALSE) |>
+              select(-notes), by = "dataset_name") |>
+  mutate(nonvanilla_type = if_else(session_design == "vanilla only", "none (vanilla only)",
+                                   nonvanilla_type))
+stopifnot(!any(is.na(session_design$nonvanilla_type)))
+```
+
+Two versions of the split:
+
+* **Dataset design**: does the dataset contain any non-vanilla trials at all?
+* **Session design**: did *this child's session* contain any non-vanilla trials? This is the
+  more precise coding. Four longitudinal Fernald/Marchman datasets ran vanilla-only sessions at the
+  youngest ages and added other trial types later, so the two codings differ for them.
+
+"Vanilla" follows Peekbank's `vanilla_trial` flag. It is a liberal flag: several "vanilla only"
+datasets have manipulations that Peekbank still counts as vanilla (semantically related
+distractors, typical vs atypical exemplars, coarticulation cues, gender-consistent speakers).
+None of those involves an odd-sounding label, a novel word, or a label with no matching referent.
+
+```{r}
+#| label: tbl-datasets
+#| tbl-cap: "Design of each dataset in the Frank et al. (2025) analysis file. Sessions and ages are for sessions that contribute vanilla trials to the analysis."
+dataset_table <- d_trial |>
+  distinct(dataset_name, administration_id, age) |>
+  left_join(session_design, by = c("dataset_name", "administration_id")) |>
+  group_by(dataset_name, dataset_design) |>
+  summarise(sessions = n(),
+            `sessions vanilla only` = sum(session_design == "vanilla only"),
+            `sessions mixed` = sum(session_design == "mixed"),
+            `mean age (mo)` = round(mean(age), 1),
+            `% non-vanilla in mixed sessions` =
+              round(100 * mean(prop_nonvanilla_session[session_design == "mixed"])),
+            .groups = "drop") |>
+  left_join(read_csv(here("metadata", "nonvanilla_types.csv"), show_col_types = FALSE),
+            by = "dataset_name") |>
+  arrange(dataset_design, dataset_name)
+knitr::kable(dataset_table)
+```
+
+```{r}
+#| label: fig-age-design
+#| fig-cap: "Age distribution of sessions by session design. The vanilla-only sessions are younger on average, so every comparison below has to condition on age."
+#| fig-height: 3
+d_trial |>
+  distinct(administration_id, age) |>
+  left_join(session_design, by = "administration_id") |>
+  ggplot(aes(x = age, fill = session_design)) +
+  geom_histogram(binwidth = 2, position = "identity", alpha = .6) +
+  scale_fill_manual(values = c("mixed" = "#D95F02", "vanilla only" = "#1B9E77"), name = NULL) +
+  labs(x = "Age (months)", y = "Sessions") +
+  theme_bw()
+```
+
+## Position of each vanilla trial among non-vanilla trials
+
+For the within-session analysis (@sec-within) we count, for each vanilla trial, how many
+non-vanilla trials came before it in the same session, and whether the trial just before it was
+non-vanilla. Trials that were never imported into Peekbank cannot be counted, so these are lower
+bounds.
+
+```{r}
+#| label: position
+position <- all_trials |>
+  arrange(administration_id, trial_order) |>
+  group_by(administration_id) |>
+  mutate(n_prev = row_number() - 1,
+         n_prev_nonvanilla = cumsum(!vanilla_trial) - !vanilla_trial,
+         prev_nonvanilla = lag(!vanilla_trial),
+         prev_condition = lag(condition)) |>
+  ungroup() |>
+  select(administration_id, trial_id, condition, n_prev, n_prev_nonvanilla, prev_nonvanilla)
+
+trials_out <- d_trial |>
+  select(dataset_name, subject_id, administration_id, trial_id, trial_order, age,
+         target_label, distractor_label, short_window_accuracy, long_window_accuracy,
+         rt, log_rt) |>
+  left_join(session_design, by = c("dataset_name", "administration_id")) |>
+  left_join(position, by = c("administration_id", "trial_id"))
+stopifnot(nrow(trials_out) == nrow(d_trial), !any(is.na(trials_out$session_design)))
+
+write_csv(trials_out, here("data", "derived", "vanilla_trials_design.csv"), na = "")
+write_csv(session_design, here("data", "derived", "session_design.csv"), na = "")
+```
+
+Written to `data/derived/`: `vanilla_trials_design.csv` (`r nrow(trials_out)` vanilla trials with
+design codes) and `session_design.csv` (one row per session).

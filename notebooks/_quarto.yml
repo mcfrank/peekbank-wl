@@ -1,0 +1,29 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Vanilla word recognition in vanilla-only vs mixed designs"
+  subtitle: "Does familiar-word recognition look worse when other trial types are in the session?"
+  author: "Peekbank team"
+  date: today
+  chapters:
+    - index.qmd
+    - 01-design.qmd
+    - 02-split.qmd
+    - 03-within.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    df-print: paged
+    fig-width: 7
+    fig-height: 4.5
+
+execute:
+  freeze: auto
+  warning: false
+  message: false

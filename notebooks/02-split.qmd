@@ -1,0 +1,282 @@
+# Vanilla-only vs mixed designs {#sec-split}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+library(lmerTest)
+library(broom.mixed)
+i_am("notebooks/02-split.qmd")
+theme_set(theme_bw(base_size = 11) + theme(panel.grid.minor = element_blank()))
+
+DESIGN_COLS <- c("mixed" = "#D95F02", "vanilla only" = "#1B9E77")
+ACC_MIN_TRIALS <- 4   # as in Frank et al. (2025)
+RT_MIN_TRIALS <- 2
+
+d <- read_csv(here("data", "derived", "vanilla_trials_design.csv"), show_col_types = FALSE) |>
+  mutate(log_age = log(age),
+         session_design = factor(session_design, levels = c("vanilla only", "mixed")),
+         dataset_design = factor(dataset_design, levels = c("vanilla only", "mixed")))
+d$log_age_s <- scale(d$log_age)[, 1]
+d$log_trial_s <- scale(log(d$n_prev + 1))[, 1]
+```
+
+All analyses here use the vanilla trials from Frank et al. (2025) and that paper's measures:
+accuracy is the proportion of target looking 200–4000 ms after label onset, and reaction time is
+the latency of the first distractor-to-target shift. The only addition is the split by whether
+the child's session also contained non-vanilla trials (@sec-design).
+
+## Participant-level accuracy and speed by age
+
+```{r}
+#| label: sub
+d_sub <- d |>
+  group_by(dataset_name, subject_id, administration_id, age, session_design, dataset_design,
+           nonvanilla_type) |>
+  summarise(n_acc = sum(!is.na(long_window_accuracy)), n_rt = sum(!is.na(rt)),
+            accuracy = mean(long_window_accuracy, na.rm = TRUE),
+            rt = mean(rt, na.rm = TRUE), .groups = "drop") |>
+  mutate(accuracy = if_else(n_acc >= ACC_MIN_TRIALS, accuracy, NA),
+         rt = if_else(n_rt >= RT_MIN_TRIALS, rt, NA))
+```
+
+```{r}
+#| label: fig-devchange-split
+#| fig-cap: "Participant-level target looking and reaction time by age (log scale), as in the developmental-change figure of Frank et al. (2025), split by whether the session contained only vanilla trials or also other trial types. Points are sessions; lines are linear fits in log age with 95% confidence bands. The dotted line is chance."
+#| fig-width: 9
+#| fig-height: 4
+p_acc <- ggplot(filter(d_sub, !is.na(accuracy)),
+                aes(x = age, y = accuracy, colour = session_design, fill = session_design)) +
+  geom_point(alpha = .08, size = .7) +
+  geom_smooth(method = "lm", linewidth = .9) +
+  geom_hline(yintercept = .5, lty = 3) +
+  scale_x_log10(breaks = c(12, 24, 36, 48, 60)) +
+  scale_colour_manual(values = DESIGN_COLS, name = "Session") +
+  scale_fill_manual(values = DESIGN_COLS, name = "Session") +
+  labs(x = "Age (months; log scale)", y = "Proportion target looking")
+p_rt <- ggplot(filter(d_sub, !is.na(rt)),
+               aes(x = age, y = rt, colour = session_design, fill = session_design)) +
+  geom_point(alpha = .08, size = .7) +
+  geom_smooth(method = "lm", linewidth = .9) +
+  scale_x_log10(breaks = c(12, 24, 36, 48, 60)) +
+  scale_y_log10() +
+  scale_colour_manual(values = DESIGN_COLS, name = "Session") +
+  scale_fill_manual(values = DESIGN_COLS, name = "Session") +
+  labs(x = "Age (months; log scale)", y = "Reaction time (ms; log scale)")
+cowplot::plot_grid(p_acc + theme(legend.position = "none"),
+                   p_rt + theme(legend.position = c(.75, .85)), nrow = 1)
+```
+
+The pooled fits in @fig-devchange-split ignore dataset. The next figure shows what the fits are
+made of: one point per dataset and session design.
+
+```{r}
+#| label: fig-dataset-means
+#| fig-cap: "Mean accuracy by dataset. Longitudinal datasets that ran vanilla-only sessions at young ages and mixed sessions later appear twice, joined by a grey line. The black line is the pooled log-age fit to all sessions. Point size is the number of sessions."
+#| fig-height: 5.5
+ds_means <- d_sub |>
+  filter(!is.na(accuracy)) |>
+  group_by(dataset_name, session_design) |>
+  summarise(n = n(), age = exp(mean(log(age))), accuracy = mean(accuracy), .groups = "drop") |>
+  filter(n >= 10)
+ggplot(ds_means, aes(x = age, y = accuracy)) +
+  geom_smooth(data = filter(d_sub, !is.na(accuracy)), method = "lm", colour = "black",
+              linewidth = .5, se = FALSE) +
+  geom_line(aes(group = dataset_name), colour = "grey60") +
+  geom_point(aes(colour = session_design, size = n), alpha = .8) +
+  ggrepel::geom_text_repel(aes(label = dataset_name, colour = session_design), size = 2.6,
+                           show.legend = FALSE, max.overlaps = 30) +
+  geom_hline(yintercept = .5, lty = 3) +
+  scale_x_log10(breaks = c(12, 18, 24, 36, 48)) +
+  scale_colour_manual(values = DESIGN_COLS, name = "Session") +
+  scale_size_area(max_size = 6, name = "Sessions") +
+  labs(x = "Mean age (months; log scale)", y = "Mean proportion target looking")
+```
+
+## Timecourse
+
+```{r}
+#| label: timecourse-data
+TC <- here("cache", "02_timecourse.rds")
+if (!file.exists(TC)) {
+  d_aoi <- readRDS(here("cache", "peekbank-development", "cached_intermediates", "0_d_aoi.Rds"))
+  sd_ <- read_csv(here("data", "derived", "session_design.csv"), show_col_types = FALSE) |>
+    select(administration_id, session_design)
+  tc <- d_aoi |>
+    filter(t_norm > -1000) |>
+    left_join(sd_, by = "administration_id") |>
+    mutate(age_bin = cut(age, breaks = c(0, 15, 18, 21, 24, 30, 36, 60),
+                         labels = c("<15", "15-18", "18-21", "21-24", "24-30", "30-36", ">36"))) |>
+    group_by(dataset_name, subject_id, session_design, age_bin, t_norm) |>
+    summarise(n = n(), accuracy = mean(correct, na.rm = TRUE), .groups = "drop")
+  saveRDS(tc, TC)
+  rm(d_aoi); gc()
+}
+tc <- readRDS(TC)
+tc_sum <- tc |>
+  filter(n >= 5) |>
+  group_by(session_design, age_bin, t_norm) |>
+  summarise(n_subj = sum(!is.na(accuracy)), n_datasets = n_distinct(dataset_name),
+            sem = sd(accuracy, na.rm = TRUE) / sqrt(n_subj),
+            accuracy = mean(accuracy, na.rm = TRUE), .groups = "drop") |>
+  filter(n_subj >= 25)
+```
+
+```{r}
+#| label: fig-timecourse-split
+#| fig-cap: "Timecourse of target looking on vanilla trials by age bin (months), as in Figure 1 of Frank et al. (2025), split by session design. Bands are standard errors of the mean over children. Children contribute at least 5 trials per time bin, and each curve needs at least 25 children (the paper used 50 for the unsplit figure). Datasets are not controlled, so within an age bin the two curves come from different studies."
+#| fig-width: 9
+#| fig-height: 5
+ggplot(tc_sum, aes(x = t_norm, y = accuracy, colour = session_design, fill = session_design)) +
+  annotate("rect", xmin = 200, xmax = 4000, ymin = -Inf, ymax = Inf, fill = "grey93") +
+  geom_ribbon(aes(ymin = accuracy - sem, ymax = accuracy + sem), alpha = .3, colour = NA) +
+  geom_line() +
+  geom_hline(yintercept = .5, lty = 2) +
+  geom_vline(xintercept = 0) +
+  facet_wrap(~age_bin, nrow = 2) +
+  scale_colour_manual(values = DESIGN_COLS, name = "Session") +
+  scale_fill_manual(values = DESIGN_COLS, name = "Session") +
+  scale_x_continuous(breaks = seq(-1000, 4000, 1000), limits = c(-1000, 4000)) +
+  coord_cartesian(ylim = c(.4, .95)) +
+  labs(x = "Time from label onset (ms)", y = "Proportion target looking") +
+  theme(legend.position = c(.88, .2))
+```
+
+```{r}
+#| label: tbl-timecourse-n
+#| tbl-cap: "Children and datasets behind each timecourse curve (at 1000 ms)."
+tc_sum |> filter(t_norm == 1000) |>
+  select(age_bin, session_design, n_subj, n_datasets) |>
+  pivot_wider(names_from = session_design, values_from = c(n_subj, n_datasets)) |>
+  knitr::kable()
+```
+
+## Models
+
+The base model is the paper's: trial-level accuracy on log age, with random age slopes by dataset
+and random intercepts by child. We add the design split. A positive `mixed` coefficient means
+*higher* vanilla accuracy in mixed sessions.
+
+```{r}
+#| label: models-acc
+ctrl <- lmerControl(optimizer = "bobyqa")
+f_re <- "+ (log_age_s | dataset_name) + (1 | subject_id)"
+fit <- function(rhs, y = "long_window_accuracy", data = d)
+  lmer(as.formula(paste(y, "~", rhs, f_re)), data = data, control = ctrl)
+
+acc_mods <- list(
+  "base (paper)"               = fit("log_age_s"),
+  "dataset design"             = fit("log_age_s + dataset_design"),
+  "session design"             = fit("log_age_s + session_design"),
+  "session design + trial N"   = fit("log_age_s + session_design + log_trial_s"),
+  "session design x age + trial N" = fit("log_age_s * session_design + log_trial_s"),
+  "dataset fixed effects"      =
+    lmer(long_window_accuracy ~ log_age_s + session_design + log_trial_s + dataset_name +
+           (1 | subject_id), data = d, control = ctrl)
+)
+
+tidy_design <- function(mods) {
+  imap_dfr(mods, ~ tidy(.x, effects = "fixed", conf.int = TRUE) |> mutate(model = .y)) |>
+    filter(str_detect(term, "design|log_trial")) |>
+    transmute(model, term, estimate, conf.low, conf.high, p.value)
+}
+```
+
+```{r}
+#| label: tbl-acc-models
+#| tbl-cap: "Design and trial-position coefficients from accuracy models (proportion scale). Trial N is log position in the session, standardised."
+tidy_design(acc_mods) |> knitr::kable(digits = 3)
+```
+
+The last model replaces the dataset random effects with dataset fixed effects, so its design
+coefficient uses only the four longitudinal datasets that changed design between visits.
+In those datasets the design change is completely confounded with the visit and with the stimulus
+set, and age is the only thing separating them, so that estimate deserves little weight.
+
+Same models for reaction time (log RT; positive = slower in mixed sessions):
+
+```{r}
+#| label: tbl-rt-models
+#| tbl-cap: "Design and trial-position coefficients from log RT models."
+d_rt <- filter(d, !is.na(log_rt))
+rt_mods <- list(
+  "dataset design"           = fit("log_age_s + dataset_design", "log_rt", d_rt),
+  "session design"           = fit("log_age_s + session_design", "log_rt", d_rt),
+  "session design + trial N" = fit("log_age_s + session_design + log_trial_s", "log_rt", d_rt)
+)
+tidy_design(rt_mods) |> knitr::kable(digits = 3)
+```
+
+## By type of non-vanilla trial
+
+The proposed mechanism is about trials where something is "off" about the label: mispronunciations,
+novel words, labels with no familiar referent. So we split the mixed sessions by what their
+non-vanilla trials were (hand-coded per dataset in `metadata/nonvanilla_types.csv`).
+
+```{r}
+#| label: tbl-type-n
+#| tbl-cap: "Data by type of non-vanilla trial in the session."
+d |> group_by(nonvanilla_type) |>
+  summarise(datasets = n_distinct(dataset_name), sessions = n_distinct(administration_id),
+            trials = n(), `mean age` = round(mean(age), 1),
+            `mean accuracy` = round(mean(long_window_accuracy, na.rm = TRUE), 3)) |>
+  knitr::kable()
+```
+
+```{r}
+#| label: fig-type
+#| fig-cap: "Difference in vanilla-trial accuracy from vanilla-only sessions, by type of non-vanilla trial in the session, adjusted for log age and trial position (model with dataset random age slopes and child intercepts). Bars are 95% confidence intervals. Each type rests on few datasets (see table above)."
+#| fig-height: 2.8
+d$nonvanilla_type <- relevel(factor(d$nonvanilla_type), ref = "none (vanilla only)")
+type_mod <- fit("log_age_s + nonvanilla_type + log_trial_s")
+type_est <- tidy(type_mod, effects = "fixed", conf.int = TRUE) |>
+  filter(str_detect(term, "nonvanilla_type")) |>
+  mutate(type = str_remove(term, "nonvanilla_type"))
+ggplot(type_est, aes(x = estimate, y = type)) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  labs(x = "Accuracy difference from vanilla-only sessions", y = NULL)
+```
+
+```{r}
+#| label: tbl-type
+type_est |> select(type, estimate, conf.low, conf.high, p.value) |> knitr::kable(digits = 3)
+```
+
+## Summary
+
+```{r}
+#| label: summary-numbers
+g <- function(tab, m, t) { r <- tab[tab$model == m & tab$term == t, ]
+  sprintf("%+.3f [%.3f, %.3f]", r$estimate, r$conf.low, r$conf.high) }
+acc_tab <- tidy_design(acc_mods); rt_tab <- tidy_design(rt_mods)
+```
+
+* **No sign that vanilla trials go worse in mixed designs.** With datasets classified as a whole,
+  the accuracy difference (mixed minus vanilla only) is
+  `r g(acc_tab, "dataset design", "dataset_designmixed")`. This is a comparison of
+  `r n_distinct(d$dataset_name[d$dataset_design == "mixed"])` mixed datasets with
+  `r n_distinct(d$dataset_name[d$dataset_design == "vanilla only"])` vanilla-only ones, so the
+  interval is wide: it rules out a deficit larger than about 4 percentage points.
+* **Classified by session, mixed sessions look better, not worse**
+  (`r g(acc_tab, "session design", "session_designmixed")`; RT
+  `r g(rt_tab, "session design", "session_designmixed")` log units, i.e. faster). This comes from
+  the longitudinal Fernald/Marchman datasets, where the vanilla-only sessions are the earliest
+  visit and the mixed sessions are later visits with different items. Age is in the model, but
+  visit, items and practice are not separable from design there. We read this as a confound, not
+  as a benefit of mixed designs.
+* **Trial position does not explain anything away.** Accuracy rises slightly with position in the
+  session, and adding it leaves the design coefficient unchanged.
+* **By type,** sessions with mispronunciation trials and with novel-word / ME trials are both
+  within a couple of points of vanilla-only sessions, with intervals of ±4–6 points. Only the
+  "novel + sentence" group (the Fernald/Marchman datasets again) differs.
+
+The between-study comparison cannot rule out a small cost. @sec-within looks inside mixed sessions.
+
+```{r}
+#| label: save
+saveRDS(list(acc = tidy_design(acc_mods), rt = tidy_design(rt_mods), type = type_est),
+        here("cache", "02_estimates.rds"))
+```

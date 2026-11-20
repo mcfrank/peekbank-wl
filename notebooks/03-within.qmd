@@ -1,0 +1,159 @@
+# Within mixed sessions {#sec-within}
+
+{{< include _caution.qmd >}}
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(here)
+library(lmerTest)
+library(broom.mixed)
+i_am("notebooks/03-within.qmd")
+theme_set(theme_bw(base_size = 11) + theme(panel.grid.minor = element_blank()))
+
+d <- read_csv(here("data", "derived", "vanilla_trials_design.csv"), show_col_types = FALSE) |>
+  filter(session_design == "mixed", !is.na(long_window_accuracy)) |>
+  mutate(log_age = log(age),
+         prop_prev_nonvanilla = if_else(n_prev > 0, n_prev_nonvanilla / n_prev, NA),
+         prev = if_else(prev_nonvanilla, "after non-vanilla", "after vanilla"))
+d$log_age_s <- scale(d$log_age)[, 1]
+d$log_trial_s <- scale(log(d$n_prev + 1))[, 1]
+```
+
+The between-study comparison in @sec-split is confounded with lab, stimuli and age. A cleaner
+test uses only the mixed sessions and asks whether a vanilla trial goes worse when it follows
+non-vanilla trials, holding trial position constant. If children become unsure what the task is
+after odd trials, then:
+
+* a vanilla trial directly after a non-vanilla trial should be less accurate than one after
+  another vanilla trial (a local effect), and
+* a vanilla trial with more non-vanilla trials before it should be less accurate than one at the
+  same position with fewer (a cumulative effect), and
+* sessions with a larger share of non-vanilla trials should have lower vanilla accuracy
+  (a dose effect across sessions).
+
+This is `r nrow(d)` vanilla trials from `r n_distinct(d$administration_id)` mixed sessions in
+`r n_distinct(d$dataset_name)` datasets.
+
+## Local effect: the trial just before
+
+```{r}
+#| label: fig-prev
+#| fig-cap: "Vanilla-trial accuracy by position in the session, split by whether the preceding trial was vanilla or not. Points are means over trials in position bins of five (at least 100 trials); bars are 95% confidence intervals that ignore clustering."
+#| fig-height: 3.5
+d |> filter(!is.na(prev)) |>
+  mutate(pos_bin = floor(n_prev / 5) * 5 + 3) |>
+  group_by(pos_bin, prev) |>
+  summarise(n = n(), acc = mean(long_window_accuracy),
+            se = sd(long_window_accuracy) / sqrt(n), .groups = "drop") |>
+  filter(n >= 100) |>
+  ggplot(aes(x = pos_bin, y = acc, colour = prev)) +
+  geom_pointrange(aes(ymin = acc - 1.96 * se, ymax = acc + 1.96 * se),
+                  position = position_dodge(width = 1.5)) +
+  geom_hline(yintercept = .5, lty = 3) +
+  scale_colour_manual(values = c("after non-vanilla" = "#D95F02", "after vanilla" = "#1B9E77"),
+                      name = NULL) +
+  labs(x = "Trial position in session", y = "Proportion target looking")
+```
+
+```{r}
+#| label: fig-prev-dataset
+#| fig-cap: "Effect of the preceding trial being non-vanilla on vanilla-trial accuracy, within each dataset (per-dataset regression adjusting for log age and log trial position; 95% confidence intervals not adjusted for repeated measures). Negative values mean lower accuracy after a non-vanilla trial. Datasets need at least 50 trials of each kind."
+#| fig-height: 4.5
+types <- read_csv(here("metadata", "nonvanilla_types.csv"), show_col_types = FALSE)
+by_ds <- d |> filter(!is.na(prev_nonvanilla)) |>
+  group_by(dataset_name) |>
+  filter(sum(prev_nonvanilla) >= 50, sum(!prev_nonvanilla) >= 50) |>
+  group_modify(~ {
+    f <- if (n_distinct(.x$age) > 5) long_window_accuracy ~ prev_nonvanilla + log(n_prev + 1) + log_age
+         else long_window_accuracy ~ prev_nonvanilla + log(n_prev + 1)
+    broom::tidy(lm(f, data = .x), conf.int = TRUE) |> filter(term == "prev_nonvanillaTRUE") |>
+      mutate(n = nrow(.x))
+  }) |> ungroup() |>
+  left_join(types, by = "dataset_name")
+ggplot(by_ds, aes(x = estimate, y = reorder(dataset_name, estimate), colour = nonvanilla_type)) +
+  geom_vline(xintercept = 0, lty = 2) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  scale_colour_brewer(palette = "Dark2", name = "Non-vanilla trials") +
+  labs(x = "Accuracy after non-vanilla minus after vanilla", y = NULL)
+```
+
+## Models
+
+```{r}
+#| label: models
+ctrl <- lmerControl(optimizer = "bobyqa")
+dm <- filter(d, !is.na(prev_nonvanilla))
+dm$prop_prev_c <- dm$prop_prev_nonvanilla - mean(dm$prop_prev_nonvanilla)
+dm$prop_session_c <- dm$prop_nonvanilla_session - mean(dm$prop_nonvanilla_session)
+
+mods <- list(
+  "local" = lmer(long_window_accuracy ~ log_age_s + log_trial_s + prev_nonvanilla +
+                   (log_age_s | dataset_name) + (1 | subject_id), data = dm, control = ctrl),
+  "local + cumulative" = lmer(long_window_accuracy ~ log_age_s + log_trial_s + prev_nonvanilla +
+                   prop_prev_c + (log_age_s | dataset_name) + (1 | subject_id),
+                 data = dm, control = ctrl),
+  "local x age" = lmer(long_window_accuracy ~ log_age_s * prev_nonvanilla + log_trial_s +
+                   (log_age_s | dataset_name) + (1 | subject_id), data = dm, control = ctrl),
+  "session dose" = lmer(long_window_accuracy ~ log_age_s + log_trial_s + prop_session_c +
+                   (log_age_s | dataset_name) + (1 | subject_id), data = dm, control = ctrl)
+)
+est <- imap_dfr(mods, ~ tidy(.x, effects = "fixed", conf.int = TRUE) |> mutate(model = .y)) |>
+  filter(term != "(Intercept)") |>
+  transmute(model, term, estimate, conf.low, conf.high, p.value)
+```
+
+```{r}
+#| label: tbl-within
+#| tbl-cap: "Within-mixed-session models of vanilla-trial accuracy (proportion scale). `prev_nonvanilla`: preceding trial was non-vanilla. `prop_prev_c`: share of all preceding trials that were non-vanilla (centred; coefficient is the difference between 0% and 100%). `prop_session_c`: share of the whole session that was non-vanilla."
+knitr::kable(est, digits = 3)
+```
+
+## Local effect by type of non-vanilla trial
+
+The hypothesis is most specific for odd-sounding labels, so we let the local effect differ by the
+kind of non-vanilla trial the dataset has.
+
+```{r}
+#| label: tbl-local-type
+#| tbl-cap: "Effect of the preceding trial being non-vanilla, by the dataset's type of non-vanilla trial (simple effects from one model with a type x preceding-trial interaction, adjusting for log age and trial position; dataset random age slopes and child intercepts)."
+dm <- dm |> left_join(types |> select(dataset_name, type = nonvanilla_type), by = "dataset_name")
+local_type <- lmer(long_window_accuracy ~ log_age_s + log_trial_s + type + type:prev_nonvanilla +
+                     (log_age_s | dataset_name) + (1 | subject_id), data = dm, control = ctrl)
+local_type_est <- tidy(local_type, effects = "fixed", conf.int = TRUE) |>
+  filter(str_detect(term, "prev_nonvanilla")) |>
+  transmute(type = str_remove_all(term, "^type|:prev_nonvanillaTRUE"),
+            estimate, conf.low, conf.high, p.value) |>
+  left_join(dm |> group_by(type) |>
+              summarise(datasets = n_distinct(dataset_name), trials = n(),
+                        `trials after non-vanilla` = sum(prev_nonvanilla)), by = "type")
+knitr::kable(local_type_est, digits = 3)
+```
+
+## Summary
+
+* Pooled over all mixed sessions, a vanilla trial directly after a non-vanilla trial is no less
+  accurate than one after a vanilla trial
+  (`r sprintf("%+.3f [%.3f, %.3f]", est$estimate[est$model=="local" & est$term=="prev_nonvanillaTRUE"], est$conf.low[est$model=="local" & est$term=="prev_nonvanillaTRUE"], est$conf.high[est$model=="local" & est$term=="prev_nonvanillaTRUE"])`).
+* There is no cumulative cost either: at a given position, having had a larger share of
+  non-vanilla trials so far goes with slightly *higher* accuracy.
+* The session-dose coefficient is large and positive, but the share of non-vanilla trials varies
+  almost entirely between datasets and visits, so it carries the same confounds as @sec-split.
+* The one place the sign matches the hypothesis is the two mispronunciation datasets
+  (swingley_aslin_2002 and moore_bergelson_2022_verb), where accuracy is lower after a
+  mispronounced trial in both
+  (pooled `r with(local_type_est[local_type_est$type == "mispronunciation", ], sprintf("%+.3f [%.3f, %.3f]", estimate, conf.low, conf.high))`).
+  That is two datasets and under a thousand trials, the interval reaches zero, and trial order is confounded with items. It is a
+  lead, not a finding.
+
+Caveats:
+
+* Trial order within a session was fixed or drawn from a few lists in most studies, so "after a
+  non-vanilla trial" is partly confounded with which item was tested.
+* Blocked designs (teaching block then test block) contribute little to the local contrast.
+* Trials that were never imported into Peekbank are not counted.
+
+```{r}
+#| label: save
+saveRDS(list(est = est, by_ds = by_ds, local_type = local_type_est), here("cache", "03_estimates.rds"))
+```

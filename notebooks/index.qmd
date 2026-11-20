@@ -1,0 +1,50 @@
+# Overview {.unnumbered}
+
+{{< include _caution.qmd >}}
+
+**Question** (from Elika Bergelson). Do children do less well on standard word-recognition
+trials when the same experiment also has trials where something is "off": mispronunciations,
+novel words, labels whose referent isn't there, mutual-exclusivity trials? And is that more than
+an effect of trial number?
+
+**Approach.** Take the vanilla (familiar-word) trials analysed in Frank et al. (2025, eLife,
+"Continuous developmental changes in word recognition…"), unchanged, and split them by whether
+the child's session contained *only* vanilla trials or also other trial types. Data: Peekbank
+release 2026.1, 26 English datasets, 58,099 vanilla trials from 4,124 sessions.
+
+## Answer so far
+
+No evidence for it in Peekbank, with limited power.
+
+| Comparison | Accuracy difference (proportion target looking) |
+|---|---|
+| Mixed vs vanilla-only **datasets**, adjusting for age (17 vs 9 datasets) | −0.012 [−0.042, 0.017] |
+| Mixed vs vanilla-only **sessions**, adjusting for age and trial position | +0.051 [0.040, 0.063], confounded with visit in longitudinal datasets |
+| Within mixed sessions: vanilla trial right after a non-vanilla trial vs after a vanilla trial | +0.005 [−0.003, 0.013] |
+| Same, mispronunciation datasets only (2 datasets, 912 trials) | −0.032 [−0.066, 0.002] |
+
+* Between studies, vanilla accuracy in mixed designs is about the same as in vanilla-only designs
+  once age is accounted for. The data rule out a deficit larger than about 4 points.
+* Trial position is not doing anything here: accuracy rises slightly over a session, and
+  controlling for it changes nothing.
+* Within mixed sessions there is no drop after a non-vanilla trial and no cumulative drop.
+* The only hint in the predicted direction is after mispronounced trials, in two small datasets.
+  A direct test needs more mispronunciation data or a designed experiment.
+
+## Caveats
+
+* Between-study comparisons are confounded with lab, stimuli, age range and procedure. There are
+  26 datasets.
+* "Vanilla only" follows Peekbank's `vanilla_trial` flag. Some of those datasets vary things
+  that the flag ignores (related distractors, typicality, coarticulation).
+* The vanilla-only sessions are younger on average (18 vs 29 months).
+* The youngest children in mixed designs are about 14–15 months, and there are few of them, so
+  this says little about the 14-month-old switch-task case.
+
+## Chapters
+
+| Chapter | Contents |
+|---|---|
+| @sec-design | Which datasets and sessions have non-vanilla trials, and of what kind |
+| @sec-split | The eLife developmental figures and models, split by design |
+| @sec-within | Within mixed sessions: does a vanilla trial go worse after non-vanilla trials? |
