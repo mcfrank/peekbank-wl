@@ -129,7 +129,8 @@ dpkg -i /tmp/quarto.deb
 Check the token before anything else: `Rscript -e 'nchar(Sys.getenv("REDIVIS_API_TOKEN")) > 0'`.
 
 Mike's skills are in the public repo `mcfrank/claude-skills`; clone it and read
-`quarto-book/SKILL.md`, the book conventions this project follows, and `redivis/SKILL.md`.
+`peekbank-report/SKILL.md` (Peekbank report conventions, distilled from this project),
+`quarto-book/SKILL.md` (book conventions) and `redivis/SKILL.md`.
 
 ## Gotchas learned
 
